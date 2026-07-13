@@ -1,10 +1,17 @@
 // calc.jsx — interactive ICE vs EV total-cost-of-ownership calculator (Voltage)
 const { useState, useMemo, useEffect, useRef } = React;
 
+// Injected by config.local.js / vehicles.js (loaded before this script).
+const API_BASE = window.API_BASE || '';
+const SPECS = window.VEHICLE_SPECS || [];
+
 /* ---------- helpers ---------- */
-const group = (n) => Math.round(n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-const R = (n) => 'R ' + group(n);
-const Rk = (n) => 'R ' + (Math.round(n / 100) / 10).toFixed(1).replace(/\.0$/, '') + 'k';
+const group = (n) => Math.round(n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+const R = (n) => 'R ' + group(n);
+const Rk = (n) => 'R ' + (Math.round(n / 100) / 10).toFixed(1).replace(/\.0$/, '') + 'k';
+// Declining-balance book (resale) value after `yr` years.
+const book = (price, dep, yr) => price * Math.pow(1 - (dep || 0) / 100, yr);
+const insFromPrice = (price) => Math.round((price * 0.038) / 1000) * 1000;
 
 /* ---------- icons ---------- */
 const I = {
@@ -37,9 +44,17 @@ function Field({ label, value, onChange, pre, suf, text, span }) {
 }
 
 /* ---------- vehicle panel ---------- */
-function Panel({ kind, d, set }) {
+function Panel({ kind, d, set, specs }) {
   const ev = kind === 'ev';
   const up = (k) => (v) => set({ ...d, [k]: v });
+  const opts = specs.filter((s) => s.powertrain === kind);
+  // Quick-pick fills trustworthy specs from the curated table; fuel comes from
+  // live rates, insurance from a price heuristic — both stay editable.
+  const pick = (name) => {
+    const s = opts.find((x) => x.name === name);
+    if (!s) return;
+    set({ ...d, name: s.name, price: s.price, use: s.use, maint: s.maint, dep: s.dep, ins: insFromPrice(s.price) });
+  };
   return (
     <div className={'panel ' + kind}>
       <div className="panel-head">
@@ -50,6 +65,15 @@ function Panel({ kind, d, set }) {
         </div>
         <div className="badge">{ev ? 'EV' : 'ICE'}</div>
       </div>
+      {opts.length > 0 && (
+        <div className="pick-row">
+          <label>Quick pick</label>
+          <select className="vpick" value="" onChange={(e) => pick(e.target.value)}>
+            <option value="">Choose a model to fill specs…</option>
+            {opts.map((s) => <option key={s.name} value={s.name}>{s.name} — R {group(s.price)}</option>)}
+          </select>
+        </div>
+      )}
       <div className="urlbar">
         {I.link}
         <input placeholder={ev ? 'Paste an EV listing link…' : 'Paste a car listing link…'} />
@@ -66,6 +90,7 @@ function Panel({ kind, d, set }) {
           <Field pre="R" label="Insurance / yr" value={d.ins} onChange={up('ins')} />
           <Field pre="R" label="Maintenance / yr" value={d.maint} onChange={up('maint')} />
         </div>
+        <Field span suf="%/yr" label="Depreciation (sets resale value)" value={d.dep} onChange={up('dep')} />
       </div>
     </div>
   );
@@ -137,10 +162,27 @@ function Breakdown({ title, kind, items, total }) {
 
 /* ---------- app ---------- */
 function App() {
-  const [ice, setIce] = useState({ name: 'Toyota Corolla 1.8 XS', price: 449900, use: 6.6, fuel: 24.5, ins: 12000, maint: 9000 });
-  const [ev, setEv] = useState({ name: 'BYD Dolphin Comfort', price: 539900, use: 15.9, fuel: 3.30, ins: 14000, maint: 3500 });
+  const [ice, setIce] = useState({ name: 'Toyota Corolla 1.8 XS', price: 449900, use: 6.6, fuel: 24.5, ins: 12000, maint: 9000, dep: 12 });
+  const [ev, setEv] = useState({ name: 'BYD Dolphin Comfort', price: 539900, use: 15.9, fuel: 3.30, ins: 14000, maint: 3500, dep: 18 });
   const [monthlyKm, setMonthlyKm] = useState(2000);
   const [period, setPeriod] = useState(5);
+  const [rates, setRates] = useState(null);
+
+  // Pull current SA fuel + electricity from the backend (falls back silently
+  // to the hardcoded defaults if /api/rates isn't reachable).
+  useEffect(() => {
+    let alive = true;
+    fetch(API_BASE + '/api/rates')
+      .then((r) => r.json())
+      .then((d) => {
+        if (!alive || !d || !d.fuel) return;
+        setRates(d);
+        if (d.fuel.petrol95_inland != null) setIce((v) => ({ ...v, fuel: d.fuel.petrol95_inland }));
+        if (d.electricity && d.electricity.home != null) setEv((v) => ({ ...v, fuel: d.electricity.home }));
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   const annualKm = monthlyKm * 12;
   const iceFuel = annualKm / 100 * ice.use * ice.fuel;
@@ -148,25 +190,38 @@ function App() {
   const iceRun = iceFuel + ice.ins + ice.maint;
   const evRun = evFuel + ev.ins + ev.maint;
 
+  const iceResale = book(ice.price, ice.dep, period);
+  const evResale = book(ev.price, ev.dep, period);
+
+  // Net cost of ownership to date = cash spent − resale value you'd recover.
   const data = useMemo(() => {
     const a = [];
-    for (let yr = 0; yr <= period; yr++) a.push({ ICE: ice.price + yr * iceRun, EV: ev.price + yr * evRun });
+    for (let yr = 0; yr <= period; yr++) {
+      a.push({
+        ICE: ice.price - book(ice.price, ice.dep, yr) + yr * iceRun,
+        EV: ev.price - book(ev.price, ev.dep, yr) + yr * evRun,
+      });
+    }
     return a;
-  }, [ice.price, ev.price, iceRun, evRun, period]);
+  }, [ice.price, ice.dep, ev.price, ev.dep, iceRun, evRun, period]);
 
   const totalICE = data[period].ICE, totalEV = data[period].EV;
   const savings = totalICE - totalEV;
   const be = useMemo(() => {
     for (let i = 1; i < data.length; i++) {
-      const d0 = data[i - 1].ICE - data[i - 1].EV, d1 = data[i].ICE - data[i].EV;
-      if (d0 < 0 && d1 >= 0) return (i - 1) + (0 - d0) / (d1 - d0);
-      if (d0 >= 0 && i === 1) return 0;
+      const d0 = data[i - 1].ICE - data[i - 1].EV;
+      const d1 = data[i].ICE - data[i].EV;
+      if (d1 > 0) return d1 === d0 ? i : (i - 1) + (0 - d0) / (d1 - d0);
     }
     return null;
   }, [data]);
 
   const evWins = savings > 0;
   const kmPct = ((monthlyKm - 200) / (4000 - 200)) * 100;
+  const beMarker = be != null && be > 0.05 ? be : null;
+  const beLabel = be == null ? 'No break-even in range'
+    : be <= 0.05 ? 'EV cheaper from year 1'
+    : `Break-even in year ${be.toFixed(1)}`;
 
   return (
     <div className="calc-page">
@@ -175,12 +230,16 @@ function App() {
         <div className="calc-head">
           <div className="eyebrow">Total cost of ownership <span className="pp">Live model</span></div>
           <h1>The real cost,<br />side by side.</h1>
-          <p>Set both cars and how you drive. The crossover chart shows the exact year electric pulls ahead — in rands.</p>
+          <p>Set both cars and how you drive. The crossover chart shows the exact year electric pulls ahead — in rands, after resale.</p>
+          <div className="rates-note">
+            {rates ? <span>Fuel &amp; electricity prefilled from <b>{rates.source === 'stub' ? 'indicative SA rates' : 'live rates'} · {rates.asOf}</b>. </span> : null}
+            Every field is editable — or use <b>Quick pick</b> to load a model.
+          </div>
         </div>
 
         <div className="calc-grid">
-          <Panel kind="ice" d={ice} set={setIce} />
-          <Panel kind="ev" d={ev} set={setEv} />
+          <Panel kind="ice" d={ice} set={setIce} specs={SPECS} />
+          <Panel kind="ev" d={ev} set={setEv} specs={SPECS} />
         </div>
 
         <div className="usage">
@@ -202,37 +261,37 @@ function App() {
 
         <div className="results">
           <div className="rcard">
-            <div className="rk">{I.fuel} ICE total · {period} yr</div>
+            <div className="rk">{I.fuel} ICE · {period} yr net</div>
             <div className="rv mono-num" style={{ color: 'var(--fg)' }}>{R(totalICE)}</div>
-            <div className="rs">{R(iceRun)} running cost / year</div>
+            <div className="rs">{R(iceRun)} running / yr · resale {R(iceResale)}</div>
           </div>
           <div className="rcard">
-            <div className="rk">{I.bolt} EV total · {period} yr</div>
+            <div className="rk">{I.bolt} EV · {period} yr net</div>
             <div className="rv mono-num" style={{ color: 'var(--fg)' }}>{R(totalEV)}</div>
-            <div className="rs">{R(evRun)} running cost / year</div>
+            <div className="rs">{R(evRun)} running / yr · resale {R(evResale)}</div>
           </div>
           <div className={'rcard ' + (evWins ? 'win' : '')}>
             <div className="rk">{evWins ? I.down : I.trend} {evWins ? 'Electric saves you' : 'Combustion stays cheaper'}</div>
             <div className="rv mono-num">{R(Math.abs(savings))}</div>
-            <div className="rs">{be != null && be <= period ? `Break-even in year ${be.toFixed(1)}` : be != null ? `Break-even past ${period} yr` : 'No break-even in range'}</div>
+            <div className="rs">{beLabel}</div>
           </div>
         </div>
 
         <div className="chart-card">
           <div className="ch-head">
-            <span className="t">Cumulative cost of ownership</span>
+            <span className="t">Net cost of ownership · after resale</span>
             <span className="legend">
               <span><i style={{ background: 'var(--fg-3)' }} />{ice.name || 'ICE'}</span>
               <span><i style={{ background: 'var(--accent)' }} />{ev.name || 'EV'}</span>
             </span>
           </div>
-          <Chart data={data} period={period} be={be} />
+          <Chart data={data} period={period} be={beMarker} />
         </div>
 
         <div className="breakdown">
-          <Breakdown title="ICE · annual" kind="ice" total={iceRun}
+          <Breakdown title="ICE · annual running" kind="ice" total={iceRun}
             items={[{ n: 'Petrol', v: iceFuel, icon: I.fuel }, { n: 'Insurance', v: ice.ins, icon: I.shield }, { n: 'Maintenance', v: ice.maint, icon: I.wrench }]} />
-          <Breakdown title="EV · annual" kind="ev" total={evRun}
+          <Breakdown title="EV · annual running" kind="ev" total={evRun}
             items={[{ n: 'Electricity', v: evFuel, icon: I.bolt }, { n: 'Insurance', v: ev.ins, icon: I.shield }, { n: 'Maintenance', v: ev.maint, icon: I.wrench }]} />
         </div>
       </div>
