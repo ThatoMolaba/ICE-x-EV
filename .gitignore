@@ -1,0 +1,11 @@
+node_modules
+dist
+dist-ssr
+*.local
+.vite
+.DS_Store
+
+# Secrets / local env (never commit real keys)
+.env
+.env*.local
+site/config.local.js

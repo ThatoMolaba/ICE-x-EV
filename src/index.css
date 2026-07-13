@@ -1,0 +1,159 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   VOLTAGE THEME  ·  drop-in replacement for src/index.css
+   ------------------------------------------------------------
+   Two token systems, derived from ONE palette, NO name clashes:
+     1. shadcn / Tailwind HSL tokens  (--background, --primary, ...)
+        -> existing components + tailwind.config keep working as-is.
+     2. Raw Voltage tokens, namespaced --v-*  (--v-line, --v-glow, ...)
+        -> for the few effects HSL utility classes don't cover
+           (translucent hairlines, accent glow, band gradient).
+   Dark lives under .dark  (matches darkMode:"class", defaultTheme="dark").
+   ============================================================ */
+@layer base {
+  :root {
+    /* shadcn tokens · LIGHT (space-separated HSL, used via hsl(var(--x))) */
+    --background: 60 8% 95%;
+    --foreground: 223 16% 8%;
+    --card: 0 0% 100%;
+    --card-foreground: 223 16% 8%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 223 16% 8%;
+    --primary: 224 67% 51%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 60 11% 96%;
+    --secondary-foreground: 220 6% 38%;
+    --muted: 60 11% 96%;
+    --muted-foreground: 220 6% 38%;
+    --accent: 224 67% 51%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 76 1% 84%;
+    --input: 76 1% 84%;
+    --ring: 224 67% 51%;
+    --radius: 0.75rem;
+
+    /* product + surface + sidebar tokens · LIGHT */
+    --ice: 222 6% 45%;
+    --ice-foreground: 223 16% 8%;
+    --ice-muted: 60 11% 96%;
+    --ev: 224 67% 51%;
+    --ev-foreground: 0 0% 100%;
+    --ev-muted: 60 11% 96%;
+    --surface: 0 0% 100%;
+    --surface-elevated: 60 11% 96%;
+    --glow-ice: 222 6% 45%;
+    --glow-ev: 224 67% 51%;
+    --sidebar-background: 60 8% 95%;
+    --sidebar-foreground: 223 16% 8%;
+    --sidebar-primary: 224 67% 51%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 60 11% 96%;
+    --sidebar-accent-foreground: 220 6% 38%;
+    --sidebar-border: 76 1% 84%;
+    --sidebar-ring: 224 67% 51%;
+
+    /* raw Voltage tokens · LIGHT (hex / rgba, used via var(--v-x)) */
+    --v-bg: #F4F4F2;
+    --v-bg-2: #FFFFFF;
+    --v-surface: #FFFFFF;
+    --v-surface-2: #F7F7F5;
+    --v-line: rgba(18,20,26,0.13);
+    --v-line-2: rgba(18,20,26,0.07);
+    --v-fg: #121419;
+    --v-fg-2: #5A5E66;
+    --v-fg-3: #9A9EA6;
+    --v-accent: #2F5BD6;
+    --v-accent-2: #2A52C4;
+    --v-accent-ink: #FFFFFF;
+    --v-glow: rgba(47,91,214,0.20);
+    --v-band: rgba(47,91,214,0.14);
+    --v-ok: #1E9E6A;
+    --v-warn: #C77B1E;
+  }
+
+  .dark {
+    /* shadcn tokens · DARK */
+    --background: 220 13% 5%;
+    --foreground: 216 26% 96%;
+    --card: 220 18% 10%;
+    --card-foreground: 216 26% 96%;
+    --popover: 220 18% 10%;
+    --popover-foreground: 216 26% 96%;
+    --primary: 223 100% 72%;
+    --primary-foreground: 220 13% 5%;
+    --secondary: 220 19% 13%;
+    --secondary-foreground: 224 6% 64%;
+    --muted: 220 19% 13%;
+    --muted-foreground: 224 6% 64%;
+    --accent: 223 100% 72%;
+    --accent-foreground: 220 13% 5%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 4% 14%;
+    --input: 220 4% 14%;
+    --ring: 223 100% 72%;
+    --radius: 0.75rem;
+
+    /* product + surface + sidebar tokens · DARK */
+    --ice: 223 6% 52%;
+    --ice-foreground: 216 26% 96%;
+    --ice-muted: 220 19% 13%;
+    --ev: 223 100% 72%;
+    --ev-foreground: 220 13% 5%;
+    --ev-muted: 220 19% 13%;
+    --surface: 220 18% 10%;
+    --surface-elevated: 220 19% 13%;
+    --glow-ice: 223 6% 52%;
+    --glow-ev: 223 100% 72%;
+    --sidebar-background: 220 13% 5%;
+    --sidebar-foreground: 216 26% 96%;
+    --sidebar-primary: 223 100% 72%;
+    --sidebar-primary-foreground: 220 13% 5%;
+    --sidebar-accent: 220 19% 13%;
+    --sidebar-accent-foreground: 224 6% 64%;
+    --sidebar-border: 220 4% 14%;
+    --sidebar-ring: 223 100% 72%;
+
+    /* raw Voltage tokens · DARK */
+    --v-bg: #0A0B0D;
+    --v-bg-2: #0E1014;
+    --v-surface: #14171D;
+    --v-surface-2: #1A1E26;
+    --v-line: rgba(255,255,255,0.10);
+    --v-line-2: rgba(255,255,255,0.055);
+    --v-fg: #F3F5F8;
+    --v-fg-2: #9DA0A8;
+    --v-fg-3: #5E626C;
+    --v-accent: #6E98FF;
+    --v-accent-2: #8FB0FF;
+    --v-accent-ink: #0A0B0D;
+    --v-glow: rgba(110,152,255,0.42);
+    --v-band: rgba(110,152,255,0.30);
+    --v-ok: #5BD0A0;
+    --v-warn: #E8A04E;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground font-sans antialiased; }
+  html { scroll-behavior: smooth; }
+}
+
+/* Space Grotesk is already mapped to font-display in tailwind.config */
+.font-display { font-family: 'Space Grotesk', system-ui, sans-serif; letter-spacing: -0.02em; }
+
+/* Voltage effect utilities (replace the old neon gradients/glass) */
+@layer utilities {
+  .hairline      { border: 1px solid var(--v-line); }
+  .hairline-soft { border: 1px solid var(--v-line-2); }
+  .glow-accent   { box-shadow: 0 0 30px -5px var(--v-glow); }
+  .bg-band       { background: linear-gradient(180deg, transparent, var(--v-band) 45%, transparent); }
+}

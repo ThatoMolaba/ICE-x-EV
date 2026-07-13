@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/components/crossoverchart.tsx","./src/components/field.tsx","./src/components/resultspanel.tsx","./src/components/themetoggle.tsx","./src/components/vehiclecard.tsx","./src/lib/format.ts","./src/lib/presets.ts","./src/lib/tco.ts"],"version":"5.9.3"}

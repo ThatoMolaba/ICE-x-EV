@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ICE → EV · The Garage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="voltage.css"/>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+<style>
+  .mobile-menu{position:fixed;inset:72px 0 auto 0;z-index:55;background:color-mix(in srgb,var(--bg) 94%,transparent);
+    backdrop-filter:blur(20px);border-bottom:1px solid var(--line-2);padding:14px 22px 24px;display:none;}
+  .mobile-menu.open{display:block;}
+  .mobile-menu a{display:block;padding:13px 0;font-size:16px;color:var(--fg-2);border-bottom:1px solid var(--line-2);}
+  .app-page{padding:118px 0 140px;position:relative;}
+  .app-head{margin-bottom:30px;}
+  .app-head h1{font-family:'Space Grotesk',sans-serif;font-weight:600;letter-spacing:-0.03em;line-height:1;
+    font-size:clamp(34px,4.4vw,58px);margin-top:16px;}
+  .app-head p{color:var(--fg-2);font-size:18px;margin-top:14px;max-width:560px;}
+
+  .toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:26px;flex-wrap:wrap;
+    padding-bottom:22px;border-bottom:1px solid var(--line-2);}
+  .seg{display:flex;gap:6px;}
+  .seg button{height:42px;padding:0 18px;border-radius:11px;border:1px solid var(--line);background:var(--bg-2);
+    color:var(--fg-2);font:inherit;font-size:13.5px;font-weight:500;cursor:pointer;transition:all .2s;}
+  .seg button.on{background:var(--fg);border-color:transparent;color:var(--bg);}
+  .seg button:not(.on):hover{border-color:var(--fg-3);color:var(--fg);}
+  .toolbar .count{font-size:13.5px;color:var(--fg-3);}
+
+  .gar-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
+  .gcard{background:var(--surface);border:1px solid var(--line-2);border-radius:20px;overflow:hidden;
+    transition:transform .3s cubic-bezier(.2,.7,.2,1),border-color .25s,box-shadow .25s;cursor:pointer;}
+  .gcard:hover{transform:translateY(-4px);border-color:var(--line);}
+  .gcard.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 24px 50px -30px var(--glow);}
+  .gphoto{position:relative;aspect-ratio:16/9;background:radial-gradient(120% 120% at 30% 18%,#23262e,#0d0f13);
+    display:flex;align-items:flex-end;justify-content:center;}
+  [data-theme="light"] .gphoto{background:radial-gradient(120% 120% at 30% 18%,#e9eaee,#cfd2d8);}
+  .gphoto svg.car{width:74%;height:74%;opacity:.5;color:var(--fg-3);}
+  .gbadge{position:absolute;top:14px;left:14px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+    padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:color-mix(in srgb,var(--bg) 60%,transparent);
+    color:var(--fg-2);backdrop-filter:blur(6px);}
+  .gbadge.ev{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 34%,transparent);}
+  .gstar{position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:50%;
+    border:1px solid var(--line);background:color-mix(in srgb,var(--bg) 55%,transparent);backdrop-filter:blur(6px);
+    display:flex;align-items:center;justify-content:center;color:var(--fg-2);transition:all .2s;}
+  .gcard.sel .gstar{background:var(--accent);border-color:transparent;color:var(--accent-ink);}
+  .gstar svg{width:16px;height:16px;}
+  .gbody{padding:20px 22px 22px;}
+  .gbody h3{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:600;letter-spacing:-0.01em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .gbody .yr{font-size:12.5px;color:var(--fg-3);margin-top:3px;}
+  .gstats{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px;}
+  .gstat .v{font-family:'Space Grotesk',sans-serif;font-size:21px;font-weight:600;letter-spacing:-0.02em;font-variant-numeric:tabular-nums;}
+  .gstat .v.acc{color:var(--accent);}
+  .gstat .l{font-size:11.5px;color:var(--fg-3);margin-top:4px;}
+  .grun{margin-top:16px;padding-top:14px;border-top:1px solid var(--line-2);display:flex;align-items:center;
+    justify-content:space-between;font-size:13px;color:var(--fg-2);}
+  .grun b{color:var(--fg);font-weight:600;font-variant-numeric:tabular-nums;}
+
+  .addcar{border:1px dashed var(--line);border-radius:20px;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:14px;color:var(--fg-3);cursor:pointer;min-height:340px;transition:border-color .25s,color .25s;}
+  .addcar:hover{border-color:var(--accent);color:var(--accent);}
+  .addcar .plus{width:54px;height:54px;border-radius:50%;border:1px solid currentColor;display:flex;align-items:center;justify-content:center;}
+  .addcar .plus svg{width:24px;height:24px;}
+
+  .comparebar{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(40px);z-index:50;
+    display:flex;align-items:center;gap:18px;background:var(--surface);border:1px solid var(--line);
+    box-shadow:var(--shadow);border-radius:999px;padding:10px 10px 10px 24px;opacity:0;pointer-events:none;
+    transition:opacity .3s,transform .3s cubic-bezier(.2,.7,.2,1);}
+  .comparebar.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto;}
+  .comparebar .ct{font-size:14px;color:var(--fg-2);}
+  .comparebar .ct b{color:var(--fg);}
+  @media (max-width:1000px){ .gar-grid{grid-template-columns:1fr 1fr;} }
+  @media (max-width:680px){ .gar-grid{grid-template-columns:1fr;} }
+  @media (max-width:560px){
+    .comparebar{left:14px;right:14px;transform:translateY(40px);padding:9px 9px 9px 18px;gap:12px;}
+    .comparebar.show{transform:translateY(0);}
+    .comparebar .ct{font-size:12.5px;}
+    .app-head h1{font-size:clamp(30px,8vw,42px);}
+  }
+</style>
+</head>
+<body>
+
+<nav class="vnav scrolled">
+  <div class="wrap">
+    <a class="brand" href="index.html"><span class="dot"></span>ICE&nbsp;→&nbsp;EV</a>
+    <div class="nav-links">
+      <a class="nav-link" href="index.html">Home</a>
+      <a class="nav-link" href="calculator.html">Calculator</a>
+      <a class="nav-link" href="snap-compare.html">Snap &amp; Compare</a>
+      <a class="nav-link active" href="garage.html">The Garage</a>
+      <a class="nav-link" href="concierge.html">Concierge</a>
+      <a class="nav-link" href="energy-map.html">Energy Map</a>
+    </div>
+    <div class="nav-right">
+      <div class="toggle" role="group" aria-label="Theme">
+        <button data-theme-btn="light" aria-label="Light"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg></button>
+        <button data-theme-btn="dark" aria-label="Dark"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+      </div>
+      <a class="signin" href="auth.html">Sign in</a>
+    </div>
+    <button class="burger" aria-label="Menu"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+  </div>
+</nav>
+<div class="mobile-menu">
+  <a href="index.html">Home</a><a href="calculator.html">Calculator</a><a href="snap-compare.html">Snap &amp; Compare</a>
+  <a href="garage.html">The Garage</a><a href="concierge.html">Concierge</a><a href="energy-map.html">Energy Map</a>
+</div>
+
+<div id="root"></div>
+
+<script src="site.js"></script>
+<script type="text/babel">
+const { useState } = React;
+const group = (n) => Math.round(n||0).toString().replace(/\B(?=(\d{3})+(?!\d))/g,' ');
+const Rk = (n) => 'R '+(Math.round(n/1000))+'k';
+
+const Car = () => (
+  <svg className="car" viewBox="0 0 120 50" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round">
+    <path d="M6 38h108M14 38c0-14 10-20 20-22 8-1.5 16-6 26-6 14 0 22 6 30 12l16 4c4 1 6 4 6 8v4"/>
+    <circle cx="34" cy="40" r="7" fill="var(--bg)"/><circle cx="92" cy="40" r="7" fill="var(--bg)"/>
+  </svg>
+);
+const Bolt = () => <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></svg>;
+
+const CARS = [
+  { id:1, name:'VW Polo 1.0 TSI', kind:'ICE', year:'2024 · Petrol', price:374900, run:57720, tco5:663500 },
+  { id:2, name:'BYD Dolphin Comfort', kind:'EV', year:'2024 · Electric', price:539900, run:29593, tco5:687865 },
+  { id:3, name:'Toyota Corolla 1.8', kind:'ICE', year:'2023 · Hybrid', price:449900, run:51400, tco5:706900 },
+  { id:4, name:'Volvo EX30 Core', kind:'EV', year:'2025 · Electric', price:776000, run:27800, tco5:915000 },
+  { id:5, name:'Haval Jolion 1.5T', kind:'ICE', year:'2024 · Petrol', price:389950, run:54300, tco5:661450 },
+  { id:6, name:'BMW iX1 xDrive30', kind:'EV', year:'2024 · Electric', price:1078000, run:31200, tco5:1234000 },
+];
+
+function GCard({ car, sel, onToggle }) {
+  const ev = car.kind === 'EV';
+  return (
+    <div className={'gcard' + (sel ? ' sel' : '')} onClick={onToggle}>
+      <div className="gphoto">
+        <Car/>
+        <span className={'gbadge' + (ev ? ' ev' : '')}>{car.kind}</span>
+        <span className="gstar">{sel
+          ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>}</span>
+      </div>
+      <div className="gbody">
+        <h3>{car.name}</h3>
+        <div className="yr">{car.year}</div>
+        <div className="gstats">
+          <div className="gstat"><div className="v">{Rk(car.price)}</div><div className="l">Purchase price</div></div>
+          <div className="gstat"><div className={'v' + (ev ? ' acc' : '')}>{Rk(car.tco5)}</div><div className="l">5-year cost</div></div>
+        </div>
+        <div className="grun"><span>Running cost</span><b>R {group(car.run)} / yr</b></div>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [filter, setFilter] = useState('all');
+  const [sel, setSel] = useState([]);
+  const shown = CARS.filter((c) => filter === 'all' || (filter === 'ev' && c.kind === 'EV') || (filter === 'ice' && c.kind === 'ICE'));
+  const toggle = (id) => setSel((s) => s.includes(id) ? s.filter((x) => x !== id) : (s.length < 2 ? [...s, id] : [s[1], id]));
+
+  return (
+    <div className="app-page">
+      <div className="wrap">
+        <div className="app-head">
+          <div className="eyebrow">The Garage <span className="pp">{CARS.length} saved</span></div>
+          <h1>Your cars, kept.</h1>
+          <p>Every vehicle you've modelled, ready to revisit. Pick any two and send them straight to the calculator.</p>
+        </div>
+
+        <div className="toolbar">
+          <div className="seg">
+            {[['all','All'],['ev','Electric'],['ice','Combustion']].map(([k,l]) => (
+              <button key={k} className={filter===k?'on':''} onClick={()=>setFilter(k)}>{l}</button>
+            ))}
+          </div>
+          <span className="count">{shown.length} {shown.length === 1 ? 'car' : 'cars'} · sorted by recently saved</span>
+        </div>
+
+        <div className="gar-grid">
+          {shown.map((c) => <GCard key={c.id} car={c} sel={sel.includes(c.id)} onToggle={()=>toggle(c.id)} />)}
+          <div className="addcar">
+            <div className="plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+            <span style={{fontSize:'14px',fontWeight:500}}>Add a car</span>
+          </div>
+        </div>
+      </div>
+
+      <div className={'comparebar' + (sel.length === 2 ? ' show' : '')}>
+        <span className="ct"><b>{sel.length}</b> of 2 selected</span>
+        <a className="btn btn-accent btn-sm" href="calculator.html">Compare in calculator <span className="arr">→</span></a>
+      </div>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

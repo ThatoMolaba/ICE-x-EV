@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ICE → EV · Energy Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="voltage.css"/>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+<style>
+  .mobile-menu{position:fixed;inset:72px 0 auto 0;z-index:55;background:color-mix(in srgb,var(--bg) 94%,transparent);
+    backdrop-filter:blur(20px);border-bottom:1px solid var(--line-2);padding:14px 22px 24px;display:none;}
+  .mobile-menu.open{display:block;}
+  .mobile-menu a{display:block;padding:13px 0;font-size:16px;color:var(--fg-2);border-bottom:1px solid var(--line-2);}
+  .map-page{padding:96px 24px 24px;max-width:1480px;margin:0 auto;}
+  .map-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:18px;flex-wrap:wrap;}
+  .map-head h1{font-family:'Space Grotesk',sans-serif;font-weight:600;letter-spacing:-0.03em;line-height:1;
+    font-size:clamp(28px,3.2vw,42px);margin-top:12px;}
+  .map-head p{color:var(--fg-2);font-size:15px;margin-top:8px;}
+
+  .map-shell{display:grid;grid-template-columns:380px 1fr;gap:16px;height:calc(100vh - 210px);min-height:560px;}
+  .sidebar{background:var(--surface);border:1px solid var(--line-2);border-radius:20px;display:flex;flex-direction:column;overflow:hidden;}
+  .searchbar{display:flex;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid var(--line-2);}
+  .searchbar svg{width:16px;height:16px;color:var(--fg-3);flex:0 0 auto;}
+  .searchbar input{flex:1;background:transparent;border:none;outline:none;color:var(--fg);font:inherit;font-size:14px;}
+  .filters{display:flex;gap:7px;padding:14px 18px;border-bottom:1px solid var(--line-2);flex-wrap:wrap;}
+  .filters button{height:34px;padding:0 13px;border-radius:999px;border:1px solid var(--line);background:var(--bg-2);
+    color:var(--fg-2);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;transition:all .2s;}
+  .filters button.on{background:var(--accent);border-color:transparent;color:var(--accent-ink);}
+  .stationlist{flex:1;overflow-y:auto;padding:8px;}
+  .stn{padding:14px 14px;border-radius:14px;cursor:pointer;transition:background .2s;border:1px solid transparent;}
+  .stn:hover{background:var(--bg-2);}
+  .stn.sel{background:var(--bg-2);border-color:color-mix(in srgb,var(--accent) 34%,transparent);}
+  .stn .r1{display:flex;align-items:center;gap:9px;}
+  .stn .sdot{width:8px;height:8px;border-radius:50%;flex:0 0 auto;}
+  .stn .sdot.ok{background:var(--ok);box-shadow:0 0 8px var(--ok);}
+  .stn .sdot.busy{background:var(--warn);}
+  .stn h4{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;flex:1;letter-spacing:-0.01em;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .stn .dist{font-size:12px;color:var(--fg-3);white-space:nowrap;flex:0 0 auto;}
+  .stn .r2{display:flex;align-items:center;gap:8px;margin-top:9px;padding-left:17px;flex-wrap:wrap;}
+  .stn .pw{font-family:'Space Grotesk',sans-serif;font-size:12.5px;color:var(--accent);font-weight:600;white-space:nowrap;}
+  .stn .conn{font-size:11px;color:var(--fg-2);background:var(--surface-2);border:1px solid var(--line-2);padding:2px 8px;border-radius:6px;}
+  .stn .price{margin-left:auto;font-size:12px;color:var(--fg-3);white-space:nowrap;}
+  .stn .status{font-size:11.5px;padding-left:17px;margin-top:7px;}
+  .stn .status.ok{color:var(--ok);} .stn .status.busy{color:var(--warn);}
+
+  .mapcanvas{position:relative;background:var(--bg-2);border:1px solid var(--line-2);border-radius:20px;overflow:hidden;}
+  .legend{position:absolute;top:16px;left:16px;display:flex;gap:14px;font-size:11.5px;color:var(--fg-2);
+    background:color-mix(in srgb,var(--bg) 64%,transparent);backdrop-filter:blur(8px);border:1px solid var(--line-2);
+    padding:8px 13px;border-radius:999px;z-index:4;}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .legend i{width:8px;height:8px;border-radius:50%;}
+  .routebtn{position:absolute;top:16px;right:16px;z-index:4;}
+
+  /* Real Google map + its states (replaces the old fake SVG map) */
+  .gmap{position:absolute;inset:0;}
+  .mapkey-overlay{position:absolute;inset:0;z-index:6;display:flex;align-items:center;justify-content:center;padding:24px;
+    background:color-mix(in srgb,var(--bg) 80%,transparent);backdrop-filter:blur(6px);text-align:center;}
+  .mapkey-overlay .card{max-width:360px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px;box-shadow:var(--shadow);}
+  .mapkey-overlay h3{font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:600;margin-bottom:8px;}
+  .mapkey-overlay p{color:var(--fg-2);font-size:13px;line-height:1.55;}
+  .mapkey-overlay code{background:var(--bg-2);border:1px solid var(--line-2);padding:1px 6px;border-radius:6px;font-size:12px;color:var(--accent);}
+  .maploading{position:absolute;top:16px;left:50%;transform:translateX(-50%);z-index:5;font-size:12px;color:var(--fg-2);
+    background:color-mix(in srgb,var(--bg) 70%,transparent);border:1px solid var(--line-2);padding:6px 12px;border-radius:999px;}
+  .src-badge{font-size:11px;color:var(--warn);border:1px solid color-mix(in srgb,var(--warn) 40%,transparent);
+    padding:2px 9px;border-radius:999px;white-space:nowrap;}
+
+  @media (max-width:980px){
+    .map-shell{grid-template-columns:1fr;height:auto;}
+    .sidebar{height:auto;max-height:420px;}
+    .mapcanvas{height:440px;}
+  }
+</style>
+</head>
+<body>
+
+<nav class="vnav scrolled">
+  <div class="wrap">
+    <a class="brand" href="index.html"><span class="dot"></span>ICE&nbsp;→&nbsp;EV</a>
+    <div class="nav-links">
+      <a class="nav-link" href="index.html">Home</a>
+      <a class="nav-link" href="calculator.html">Calculator</a>
+      <a class="nav-link" href="snap-compare.html">Snap &amp; Compare</a>
+      <a class="nav-link" href="garage.html">The Garage</a>
+      <a class="nav-link" href="concierge.html">Concierge</a>
+      <a class="nav-link active" href="energy-map.html">Energy Map</a>
+    </div>
+    <div class="nav-right">
+      <div class="toggle" role="group" aria-label="Theme">
+        <button data-theme-btn="light" aria-label="Light"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg></button>
+        <button data-theme-btn="dark" aria-label="Dark"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+      </div>
+      <a class="signin" href="auth.html">Sign in</a>
+    </div>
+    <button class="burger" aria-label="Menu"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+  </div>
+</nav>
+<div class="mobile-menu">
+  <a href="index.html">Home</a><a href="calculator.html">Calculator</a><a href="snap-compare.html">Snap &amp; Compare</a>
+  <a href="garage.html">The Garage</a><a href="concierge.html">Concierge</a><a href="energy-map.html">Energy Map</a>
+</div>
+
+<div id="root"></div>
+
+<script src="site.js"></script>
+<!-- Google Maps browser key + API base (git-ignored). Copy config.example.js -> config.local.js. -->
+<script src="config.local.js"></script>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+// Injected by config.local.js (git-ignored). Empty until you add your key.
+const MAPS_KEY = window.GOOGLE_MAPS_API_KEY || '';
+const API_BASE = window.API_BASE || '';
+const SA_CENTER = { lat: -26.1076, lng: 28.0567 }; // Sandton, Johannesburg
+
+// On-brand dark map style (no Map ID needed with classic styling).
+const DARK_STYLE = [
+  { elementType:'geometry', stylers:[{ color:'#0e1014' }] },
+  { elementType:'labels.text.stroke', stylers:[{ color:'#0e1014' }] },
+  { elementType:'labels.text.fill', stylers:[{ color:'#9aa0aa' }] },
+  { featureType:'poi', stylers:[{ visibility:'off' }] },
+  { featureType:'transit', stylers:[{ visibility:'off' }] },
+  { featureType:'landscape', elementType:'geometry', stylers:[{ color:'#101318' }] },
+  { featureType:'road', elementType:'geometry', stylers:[{ color:'#1a1e26' }] },
+  { featureType:'road', elementType:'labels.text.fill', stylers:[{ color:'#6e727c' }] },
+  { featureType:'road.highway', elementType:'geometry', stylers:[{ color:'#2a2f3a' }] },
+  { featureType:'administrative', elementType:'geometry', stylers:[{ color:'#2a2f3a' }] },
+  { featureType:'water', elementType:'geometry', stylers:[{ color:'#0a0b0d' }] },
+];
+
+function statusColor(st){ return st==='ok' ? '#5BD0A0' : st==='busy' ? '#E8A04E' : '#6E98FF'; }
+
+function escapeHtml(str){
+  return String(str==null?'':str).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
+// Teardrop pin (data-URI SVG) coloured by live status, kW inside.
+function pinSvg(kw, color){
+  const label = kw ? String(Math.round(kw)) : '';
+  const svg =
+    "<svg xmlns='http://www.w3.org/2000/svg' width='40' height='48' viewBox='0 0 40 48'>" +
+    "<path d='M20 46C20 46 35 27 35 15A15 15 0 1 0 5 15C5 27 20 46 20 46Z' fill='" + color + "' stroke='#0A0B0D' stroke-width='2'/>" +
+    "<text x='20' y='19' text-anchor='middle' font-family='Space Grotesk, sans-serif' font-size='11' font-weight='700' fill='#0A0B0D'>" + label + "</text>" +
+    "</svg>";
+  return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+}
+
+// InfoWindow renders in Google's (light) bubble, so use dark text here.
+function infoHtml(s){
+  const conn = (s.conn && s.conn.length) ? s.conn.join(' / ') : '—';
+  const kw = s.kw ? (s.kw + ' kW') : 'Power n/a';
+  const stat = s.status==='ok' ? 'Available' : s.status==='busy' ? 'Busy' : 'Status unknown';
+  return "<div style=\"font-family:Inter,sans-serif;min-width:180px;color:#14171D\">" +
+    "<div style=\"font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px\">" + escapeHtml(s.name) + "</div>" +
+    "<div style=\"color:#5A5E66;font-size:12px;margin-top:2px\">" + escapeHtml(s.area||'') + (s.dist!=null ? (' · ' + s.dist + ' km') : '') + "</div>" +
+    "<div style=\"font-weight:700;color:#2F5BD6;margin-top:6px\">" + kw + "</div>" +
+    "<div style=\"font-size:12px;margin-top:2px;color:#5A5E66\">" + escapeHtml(conn) + " · " + stat + "</div>" +
+    "</div>";
+}
+
+// Load the Maps JS API once; resolve with google.maps.
+function loadGoogleMaps(key){
+  return new Promise(function(resolve, reject){
+    if (window.google && window.google.maps) return resolve(window.google.maps);
+    window.__initGMap = function(){ resolve(window.google.maps); };
+    const s = document.createElement('script');
+    s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(key) + '&callback=__initGMap&loading=async';
+    s.async = true;
+    s.onerror = function(){ reject(new Error('Failed to load Google Maps JS API')); };
+    document.head.appendChild(s);
+  });
+}
+
+// Browser-side fallback used only if /api is unreachable (e.g. opened via file://).
+function localSample(){
+  const seed = [
+    ['Sandton City','Sandton', 0.001,-0.004,150,['CCS','Type 2'],'ok'],
+    ['Mall of Africa','Midrand', 0.060, 0.010, 60,['CCS'],'busy'],
+    ['Rosebank Mall','Rosebank',-0.030,-0.010, 80,['CCS','Type 2'],'ok'],
+    ['Melrose Arch','Melrose', -0.020, 0.005, 22,['Type 2'],'ok'],
+    ['N1 Engen 1-Stop','N1 North', 0.090,-0.050,200,['CCS'],'ok'],
+    ['Fourways Mall','Fourways', 0.080,-0.020,120,['CCS','Type 2'],'busy'],
+  ];
+  return seed.map(function(r,i){
+    return { id:'local-'+(i+1), name:r[0], area:r[1], lat:SA_CENTER.lat+r[2], lng:SA_CENTER.lng+r[3],
+             kw:r[4], conn:r[5], price:null, rating:null, status:r[6], dist:null };
+  });
+}
+
+function App(){
+  const [stations, setStations] = useState([]);
+  const [sel, setSel] = useState(null);
+  const [filter, setFilter] = useState('all');
+  const [phase, setPhase] = useState('loading'); // loading | ready
+  const [source, setSource] = useState(null);
+  const keyMissing = !MAPS_KEY;
+
+  const mapElRef = useRef(null);
+  const mapRef = useRef(null);
+  const markersRef = useRef({});
+  const infoRef = useRef(null);
+
+  // 1) Fetch chargers from the backend (server falls back to sample without a key).
+  useEffect(function(){
+    let alive = true;
+    fetch(API_BASE + '/api/chargers?lat=' + SA_CENTER.lat + '&lng=' + SA_CENTER.lng)
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!alive) return;
+        const list = (d && d.stations) || [];
+        setStations(list);
+        setSource((d && d.source) || null);
+        setSel(list[0] ? list[0].id : null);
+        setPhase('ready');
+      })
+      .catch(function(){
+        if (!alive) return;
+        const list = localSample();
+        setStations(list); setSource('local'); setSel(list[0].id); setPhase('ready');
+      });
+    return function(){ alive = false; };
+  }, []);
+
+  // 2) Init the map once (only if a browser key is present).
+  useEffect(function(){
+    if (!MAPS_KEY || !mapElRef.current) return;
+    let cancelled = false;
+    loadGoogleMaps(MAPS_KEY).then(function(maps){
+      if (cancelled) return;
+      const dark = document.documentElement.dataset.theme !== 'light';
+      mapRef.current = new maps.Map(mapElRef.current, {
+        center: SA_CENTER, zoom: 11, disableDefaultUI: true, zoomControl: true,
+        styles: dark ? DARK_STYLE : [],
+      });
+      infoRef.current = new maps.InfoWindow();
+      // Re-style live when the theme toggle flips data-theme.
+      const obs = new MutationObserver(function(){
+        if (!mapRef.current) return;
+        const d = document.documentElement.dataset.theme !== 'light';
+        mapRef.current.setOptions({ styles: d ? DARK_STYLE : [] });
+      });
+      obs.observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] });
+    }).catch(function(){ /* overlay stays up */ });
+    return function(){ cancelled = true; };
+  }, []);
+
+  // 3) Rebuild markers whenever the station list changes.
+  useEffect(function(){
+    const maps = window.google && window.google.maps;
+    if (!maps || !mapRef.current) return;
+    Object.keys(markersRef.current).forEach(function(id){ markersRef.current[id].setMap(null); });
+    markersRef.current = {};
+    stations.forEach(function(s){
+      if (s.lat == null || s.lng == null) return;
+      const marker = new maps.Marker({
+        position: { lat: s.lat, lng: s.lng }, map: mapRef.current, title: s.name,
+        icon: { url: pinSvg(s.kw, statusColor(s.status)),
+                scaledSize: new maps.Size(40,48), anchor: new maps.Point(20,46) },
+      });
+      marker.addListener('click', function(){ setSel(s.id); });
+      markersRef.current[s.id] = marker;
+    });
+  }, [stations, phase]);
+
+  // 4) On selection: pan + open info window.
+  useEffect(function(){
+    const maps = window.google && window.google.maps;
+    const s = stations.find(function(x){ return x.id === sel; });
+    if (!maps || !mapRef.current || !s || s.lat == null) return;
+    mapRef.current.panTo({ lat: s.lat, lng: s.lng });
+    const marker = markersRef.current[s.id];
+    if (infoRef.current && marker){
+      infoRef.current.setContent(infoHtml(s));
+      infoRef.current.open(mapRef.current, marker);
+    }
+  }, [sel, stations]);
+
+  const list = stations.filter(function(s){
+    return filter==='all' ? true : filter==='fast' ? (s.kw||0) >= 100 : s.status==='ok';
+  });
+  const okCount = stations.filter(function(s){ return s.status==='ok'; }).length;
+  const isSample = source==='sample' || source==='local';
+
+  return (
+    <div className="map-page">
+      <div className="map-head">
+        <div>
+          <div className="eyebrow">Energy Map <span className="pp">Live</span></div>
+          <h1>Charge with confidence.</h1>
+          <p>Every public charger near you and along your routes — power, price and live availability.</p>
+        </div>
+        <div className="chips" style={{display:'flex',gap:'10px',alignItems:'center'}}>
+          <span style={{fontFamily:"'Space Grotesk'",fontSize:'15px',color:'var(--fg-2)'}}>
+            <b style={{color:'var(--fg)'}}>{okCount}</b> available now · <b style={{color:'var(--fg)'}}>{stations.length}</b> nearby
+          </span>
+          {isSample && <span className="src-badge">sample data</span>}
+        </div>
+      </div>
+
+      <div className="map-shell">
+        <div className="sidebar">
+          <div className="searchbar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+            <input placeholder="Search area or address…" defaultValue="Sandton, Johannesburg" />
+          </div>
+          <div className="filters">
+            {[['all','All chargers'],['fast','Fast DC'],['ok','Available now']].map(([k,l]) => (
+              <button key={k} className={filter===k?'on':''} onClick={()=>setFilter(k)}>{l}</button>
+            ))}
+          </div>
+          <div className="stationlist">
+            {phase==='loading' && <div style={{padding:'18px',color:'var(--fg-3)',fontSize:'13px'}}>Loading chargers…</div>}
+            {phase==='ready' && list.length===0 && <div style={{padding:'18px',color:'var(--fg-3)',fontSize:'13px'}}>No chargers match this filter.</div>}
+            {list.map((s) => (
+              <div key={s.id} className={'stn' + (sel===s.id?' sel':'')} onClick={()=>setSel(s.id)}>
+                <div className="r1">
+                  <span className={'sdot '+(s.status==='ok'?'ok':'busy')}/>
+                  <h4>{s.name}</h4>
+                  {s.dist!=null && <span className="dist">{s.dist} km</span>}
+                </div>
+                <div className="r2">
+                  {s.kw ? <span className="pw">{s.kw} kW</span> : null}
+                  {(s.conn||[]).map((c)=><span className="conn" key={c}>{c}</span>)}
+                  {s.price ? <span className="price">{s.price}/kWh</span> : null}
+                </div>
+                <div className={'status '+(s.status==='ok'?'ok':'busy')}>
+                  {s.status==='ok' ? '✓ Available' : s.status==='busy' ? '⚠ Busy' : 'Status unknown'}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mapcanvas">
+          <div id="gmap" className="gmap" ref={mapElRef}></div>
+
+          {phase==='loading' && <div className="maploading">Loading chargers…</div>}
+
+          {keyMissing && (
+            <div className="mapkey-overlay">
+              <div className="card">
+                <h3>Add your Google Maps key</h3>
+                <p>Copy <code>site/config.example.js</code> → <code>config.local.js</code> and paste your
+                referrer-restricted <b>Maps JavaScript API</b> key. The charger list still loads
+                from the backend meanwhile.</p>
+              </div>
+            </div>
+          )}
+
+          <div className="legend">
+            <span><i style={{background:'var(--ok)'}}/>Available</span>
+            <span><i style={{background:'var(--warn)'}}/>Busy</span>
+          </div>
+          <a className="btn btn-ghost btn-sm routebtn" href="#" onClick={(e)=>e.preventDefault()}>
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="5" r="2.5"/><path d="M8.5 19H14a4 4 0 0 0 0-8H10a4 4 0 0 1 0-8h5.5"/></svg>
+            Plan a route
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
