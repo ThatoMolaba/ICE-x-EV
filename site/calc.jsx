@@ -13,6 +13,28 @@ const Rk = (n) => 'R ' + (Math.round(n / 100) / 10).toFixed(1).replace(/\.0$/, '
 const book = (price, dep, yr) => price * Math.pow(1 - (dep || 0) / 100, yr);
 const insFromPrice = (price) => Math.round((price * 0.038) / 1000) * 1000;
 
+const tokenize = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean);
+// Best-effort autofill: score each spec by how many of its name tokens appear
+// in the pasted link/text, and return the strongest match. Works fully
+// client-side (a browser can't scrape a listing across origins — CORS), so it
+// recognises models from the URL slug / text. Full page extraction is the AI
+// backend (Feature 1).
+function matchSpec(text, opts) {
+  const inp = new Set(tokenize(text));
+  if (inp.size === 0) return null;
+  let best = null, bestMatched = -1, bestRatio = 0;
+  for (const s of opts) {
+    const toks = tokenize(s.name);
+    if (!toks.length) continue;
+    const matched = toks.filter((t) => inp.has(t)).length;
+    const ratio = matched / toks.length;
+    if (matched >= 2 && ratio >= 0.5 && (matched > bestMatched || (matched === bestMatched && ratio > bestRatio))) {
+      best = s; bestMatched = matched; bestRatio = ratio;
+    }
+  }
+  return best;
+}
+
 /* ---------- icons ---------- */
 const I = {
   fuel: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 22h12V4a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v18z"/><path d="M15 9h2.5A1.5 1.5 0 0 1 19 10.5V16a2 2 0 0 0 4 0V8l-3-3"/><path d="M6 8h6"/></svg>,
@@ -48,12 +70,18 @@ function Panel({ kind, d, set, specs }) {
   const ev = kind === 'ev';
   const up = (k) => (v) => set({ ...d, [k]: v });
   const opts = specs.filter((s) => s.powertrain === kind);
-  // Quick-pick fills trustworthy specs from the curated table; fuel comes from
-  // live rates, insurance from a price heuristic — both stay editable.
-  const pick = (name) => {
-    const s = opts.find((x) => x.name === name);
-    if (!s) return;
-    set({ ...d, name: s.name, price: s.price, use: s.use, maint: s.maint, dep: s.dep, ins: insFromPrice(s.price) });
+  const [url, setUrl] = useState('');
+  const [msg, setMsg] = useState(null);
+  // Fill the panel from a spec-table row; fuel stays from live rates, insurance
+  // from a price heuristic — everything remains editable.
+  const applySpec = (s) => set({ ...d, name: s.name, price: s.price, use: s.use, maint: s.maint, dep: s.dep, ins: insFromPrice(s.price) });
+  const pick = (name) => { const s = opts.find((x) => x.name === name); if (s) applySpec(s); };
+  const autofill = () => {
+    const t = url.trim();
+    if (!t) { setMsg({ ok: false, text: 'Paste a listing link or car name first.' }); return; }
+    const found = matchSpec(t, opts);
+    if (found) { applySpec(found); setMsg({ ok: true, text: 'Filled from “' + found.name + '”' }); }
+    else { setMsg({ ok: false, text: 'Couldn’t recognise a model from that link — try Quick pick. Full listing autofill (any URL) needs the AI backend.' }); }
   };
   return (
     <div className={'panel ' + kind}>
@@ -76,9 +104,12 @@ function Panel({ kind, d, set, specs }) {
       )}
       <div className="urlbar">
         {I.link}
-        <input placeholder={ev ? 'Paste an EV listing link…' : 'Paste a car listing link…'} />
-        <button>Autofill</button>
+        <input placeholder={ev ? 'Paste an EV listing link…' : 'Paste a car listing link…'}
+          value={url} onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') autofill(); }} />
+        <button onClick={autofill}>Autofill</button>
       </div>
+      {msg && <div style={{ fontSize: 12, marginTop: 8, lineHeight: 1.45, color: msg.ok ? 'var(--ok)' : 'var(--fg-3)' }}>{msg.text}</div>}
       <div className="fields">
         <Field span text label="Vehicle" value={d.name} onChange={up('name')} />
         <Field span pre="R" label="Purchase price" value={d.price} onChange={up('price')} />
