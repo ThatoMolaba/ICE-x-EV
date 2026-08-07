@@ -27,9 +27,19 @@
 
   .map-shell{display:grid;grid-template-columns:380px 1fr;gap:16px;height:calc(100vh - 210px);min-height:560px;}
   .sidebar{background:var(--surface);border:1px solid var(--line-2);border-radius:20px;display:flex;flex-direction:column;overflow:hidden;}
-  .searchbar{display:flex;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid var(--line-2);}
+  .searchbar{padding:14px 14px 12px;border-bottom:1px solid var(--line-2);}
+  .searchbar form{display:flex;align-items:center;gap:8px;background:var(--bg-2);border:1px solid var(--line);
+    border-radius:12px;padding:0 6px 0 12px;height:44px;transition:border-color .2s,box-shadow .2s;}
+  .searchbar form:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 15%,transparent);}
   .searchbar svg{width:16px;height:16px;color:var(--fg-3);flex:0 0 auto;}
-  .searchbar input{flex:1;background:transparent;border:none;outline:none;color:var(--fg);font:inherit;font-size:14px;}
+  .searchbar input{flex:1;min-width:0;background:transparent;border:none;outline:none;color:var(--fg);font:inherit;font-size:14px;}
+  .searchbar button{flex:0 0 auto;height:32px;padding:0 14px;border-radius:9px;border:none;cursor:pointer;
+    background:var(--fg);color:var(--bg);font:inherit;font-size:13px;font-weight:500;transition:opacity .2s;}
+  .searchbar button:hover{opacity:.85;}
+  .searchbar button:disabled{opacity:.5;cursor:default;}
+  .searchmsg{font-size:12px;line-height:1.45;margin-top:8px;color:var(--fg-3);}
+  .searchmsg.err{color:var(--warn);}
+  .searchmsg b{color:var(--fg-2);font-weight:500;}
   .filters{display:flex;gap:7px;padding:14px 18px;border-bottom:1px solid var(--line-2);flex-wrap:wrap;}
   .filters button{height:34px;padding:0 13px;border-radius:999px;border:1px solid var(--line);background:var(--bg-2);
     color:var(--fg-2);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;transition:all .2s;}
@@ -204,15 +214,25 @@ function App(){
   const [source, setSource] = useState(null);
   const keyMissing = !MAPS_KEY;
 
+  // Where the map and the charger search are currently centred. Driven by the
+  // search box; every charger fetch keys off it.
+  const [center, setCenter] = useState(SA_CENTER);
+  const [place, setPlace] = useState('Sandton, Johannesburg');
+  const [q, setQ] = useState('Sandton, Johannesburg');
+  const [searching, setSearching] = useState(false);
+  const [searchMsg, setSearchMsg] = useState(null);
+
   const mapElRef = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef({});
   const infoRef = useRef(null);
 
-  // 1) Fetch chargers from the backend (server falls back to sample without a key).
+  // 1) Fetch chargers around the current centre (server falls back to sample
+  //    without a key). Re-runs whenever a search moves the centre.
   useEffect(function(){
     let alive = true;
-    fetch(API_BASE + '/api/chargers?lat=' + SA_CENTER.lat + '&lng=' + SA_CENTER.lng)
+    setPhase('loading');
+    fetch(API_BASE + '/api/chargers?lat=' + center.lat + '&lng=' + center.lng)
       .then(function(r){ return r.json(); })
       .then(function(d){
         if (!alive) return;
@@ -228,7 +248,32 @@ function App(){
         setStations(list); setSource('local'); setSel(list[0].id); setPhase('ready');
       });
     return function(){ alive = false; };
-  }, []);
+  }, [center]);
+
+  // Resolve what the user typed to coordinates. Geocoding runs server-side so
+  // this works even with no browser Maps key — the list moves regardless of
+  // whether the map canvas can render.
+  const runSearch = function(e){
+    if (e) e.preventDefault();
+    const term = q.trim();
+    if (!term) { setSearchMsg({ err: true, text: 'Type a suburb, city or address to search.' }); return; }
+    setSearching(true); setSearchMsg(null);
+    fetch(API_BASE + '/api/geocode?q=' + encodeURIComponent(term))
+      .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+      .then(function(res){
+        if (!res.ok || res.d.lat == null) {
+          setSearchMsg({ err: true, text: (res.d && res.d.message) || 'Could not find that place.' });
+          return;
+        }
+        setCenter({ lat: res.d.lat, lng: res.d.lng });
+        setPlace(res.d.label);
+        setSearchMsg({ err: false, text: res.d.label });
+      })
+      .catch(function(){
+        setSearchMsg({ err: true, text: 'Location lookup is unavailable — is the backend running?' });
+      })
+      .then(function(){ setSearching(false); });
+  };
 
   // 2) Init the map once (only if a browser key is present).
   useEffect(function(){
@@ -252,6 +297,15 @@ function App(){
     }).catch(function(){ /* overlay stays up */ });
     return function(){ cancelled = true; };
   }, []);
+
+  // 2b) Follow the search: recentre the map when the centre moves. Guarded on
+  //     the default so it doesn't fight the map's own initial center option.
+  useEffect(function(){
+    if (!mapRef.current) return;
+    if (center.lat === SA_CENTER.lat && center.lng === SA_CENTER.lng) return;
+    mapRef.current.panTo({ lat: center.lat, lng: center.lng });
+    mapRef.current.setZoom(12);
+  }, [center]);
 
   // 3) Rebuild markers whenever the station list changes.
   useEffect(function(){
@@ -300,7 +354,8 @@ function App(){
         </div>
         <div className="chips" style={{display:'flex',gap:'10px',alignItems:'center'}}>
           <span style={{fontFamily:"'Space Grotesk'",fontSize:'15px',color:'var(--fg-2)'}}>
-            <b style={{color:'var(--fg)'}}>{okCount}</b> available now · <b style={{color:'var(--fg)'}}>{stations.length}</b> nearby
+            <b style={{color:'var(--fg)'}}>{okCount}</b> available now · <b style={{color:'var(--fg)'}}>{stations.length}</b> near{' '}
+            <b style={{color:'var(--fg)'}}>{String(place).split(',')[0]}</b>
           </span>
           {isSample && <span className="src-badge">sample data</span>}
         </div>
@@ -309,8 +364,23 @@ function App(){
       <div className="map-shell">
         <div className="sidebar">
           <div className="searchbar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
-            <input placeholder="Search area or address…" defaultValue="Sandton, Johannesburg" />
+            <form onSubmit={runSearch}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+              <input placeholder="Search area or address…" value={q} aria-label="Search area or address"
+                onChange={function(e){ setQ(e.target.value); }} />
+              <button type="submit" disabled={searching}>{searching ? 'Searching…' : 'Search'}</button>
+            </form>
+            {searchMsg
+              ? <div className={'searchmsg' + (searchMsg.err ? ' err' : '')}>
+                  {searchMsg.err ? searchMsg.text : <span>Showing chargers near <b>{searchMsg.text}</b></span>}
+                </div>
+              : <div className="searchmsg">Press Enter or hit Search to move the map.</div>}
+            {isSample && (
+              <div className="searchmsg err">
+                These are sample stations, not real ones near {String(place).split(',')[0]} —
+                set <b>GOOGLE_MAPS_API_KEY</b> in <b>.env.local</b> for live charger data.
+              </div>
+            )}
           </div>
           <div className="filters">
             {[['all','All chargers'],['fast','Fast DC'],['ok','Available now']].map(([k,l]) => (

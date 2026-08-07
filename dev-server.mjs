@@ -10,12 +10,29 @@
 // It is a development convenience only — not used in the deployed build.
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
+import { readFileSync, existsSync } from 'node:fs';
 import { join, extname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const ROOT = resolve('.');
 const SITE = join(ROOT, 'site');
 const PORT = Number(process.env.PORT) || 3000;
+
+// Vercel injects project env vars into functions automatically; locally nothing
+// does, so without this every endpoint silently falls back to sample data even
+// though the key is sitting in .env.local.
+for (const name of ['.env.local', '.env']) {
+  const file = join(ROOT, name);
+  if (!existsSync(file)) continue;
+  for (const line of readFileSync(file, 'utf8').split(/\r?\n/)) {
+    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/i);
+    if (!m) continue;                                   // comment or blank
+    if (process.env[m[1]] !== undefined) continue;      // real env wins
+    process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+  }
+}
+const loaded = ['GOOGLE_MAPS_API_KEY'].filter((k) => process.env[k]);
+console.log('env loaded:', loaded.length ? loaded.join(', ') : '(none — endpoints will use sample data)');
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
