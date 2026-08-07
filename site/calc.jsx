@@ -1,9 +1,8 @@
 // calc.jsx — interactive ICE vs EV total-cost-of-ownership calculator (Voltage)
 const { useState, useMemo, useEffect, useRef } = React;
 
-// Injected by config.local.js / vehicles.js (loaded before this script).
+// Injected by config.local.js (loaded before this script).
 const API_BASE = window.API_BASE || '';
-const SPECS = window.VEHICLE_SPECS || [];
 
 /* ---------- helpers ---------- */
 const group = (n) => Math.round(n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
@@ -13,27 +12,29 @@ const Rk = (n) => 'R ' + (Math.round(n / 100) / 10).toFixed(1).replace(/\.0$/, '
 const book = (price, dep, yr) => price * Math.pow(1 - (dep || 0) / 100, yr);
 const insFromPrice = (price) => Math.round((price * 0.038) / 1000) * 1000;
 
-const tokenize = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean);
-// Best-effort autofill: score each spec by how many of its name tokens appear
-// in the pasted link/text, and return the strongest match. Works fully
-// client-side (a browser can't scrape a listing across origins — CORS), so it
-// recognises models from the URL slug / text. Full page extraction is the AI
-// backend (Feature 1).
-function matchSpec(text, opts) {
-  const inp = new Set(tokenize(text));
-  if (inp.size === 0) return null;
-  let best = null, bestMatched = -1, bestRatio = 0;
-  for (const s of opts) {
-    const toks = tokenize(s.name);
-    if (!toks.length) continue;
-    const matched = toks.filter((t) => inp.has(t)).length;
-    const ratio = matched / toks.length;
-    if (matched >= 2 && ratio >= 0.5 && (matched > bestMatched || (matched === bestMatched && ratio > bestRatio))) {
-      best = s; bestMatched = matched; bestRatio = ratio;
-    }
+/* ---------- listing autofill ----------
+   A browser cannot read another origin's HTML (CORS), so "paste any link and it
+   fills in" cannot work in page JavaScript. The link goes to /api/listing,
+   which fetches the advert server-side, scrapes make/model/year/price out of
+   it, estimates the figures adverts never publish (consumption, servicing,
+   depreciation), and returns live electric alternatives in the same price band.
+   See api/listing.js. */
+async function fetchListing(url) {
+  const r = await fetch(API_BASE + '/api/listing?url=' + encodeURIComponent(url));
+  let body = null;
+  try { body = await r.json(); } catch (e) { /* error page wasn't JSON */ }
+  if (!r.ok) {
+    throw new Error((body && (body.message || body.error))
+      || 'Lookup failed (' + r.status + '). Is the backend running?');
   }
-  return best;
+  return body;
 }
+
+// Annual running cost and net cost-to-date, shared by the headline result and
+// by every alternative card so the numbers on screen always agree.
+const runCost = (v, annualKm) => (annualKm / 100) * (v.use || 0) * (v.fuel || 0) + (v.ins || 0) + (v.maint || 0);
+const netCost = (v, annualKm, years) =>
+  (v.price || 0) - book(v.price || 0, v.dep || 0, years) + years * runCost(v, annualKm);
 
 /* ---------- icons ---------- */
 const I = {
@@ -48,10 +49,10 @@ const I = {
 };
 
 /* ---------- field ---------- */
-function Field({ label, value, onChange, pre, suf, text, span }) {
+function Field({ label, value, onChange, pre, suf, text, span, est }) {
   return (
     <div className="field" style={span ? { gridColumn: '1 / -1' } : null}>
-      <label>{label}</label>
+      <label>{label}{est && <span className="est" title="Estimated — the advert does not publish this">est.</span>}</label>
       <div className="inp">
         {pre && <span className="pre">{pre}</span>}
         <input
@@ -66,63 +67,123 @@ function Field({ label, value, onChange, pre, suf, text, span }) {
 }
 
 /* ---------- vehicle panel ---------- */
-function Panel({ kind, d, set, specs }) {
+// `head` is the slot above the fields: the paste bar on the combustion side,
+// the live alternatives list on the electric side.
+function Panel({ kind, d, set, head, chips, est }) {
   const ev = kind === 'ev';
   const up = (k) => (v) => set({ ...d, [k]: v });
-  const opts = specs.filter((s) => s.powertrain === kind);
-  const [url, setUrl] = useState('');
-  const [msg, setMsg] = useState(null);
-  // Fill the panel from a spec-table row; fuel stays from live rates, insurance
-  // from a price heuristic — everything remains editable.
-  const applySpec = (s) => set({ ...d, name: s.name, price: s.price, use: s.use, maint: s.maint, dep: s.dep, ins: insFromPrice(s.price) });
-  const pick = (name) => { const s = opts.find((x) => x.name === name); if (s) applySpec(s); };
-  const autofill = () => {
-    const t = url.trim();
-    if (!t) { setMsg({ ok: false, text: 'Paste a listing link or car name first.' }); return; }
-    const found = matchSpec(t, opts);
-    if (found) { applySpec(found); setMsg({ ok: true, text: 'Filled from “' + found.name + '”' }); }
-    else { setMsg({ ok: false, text: 'Couldn’t recognise a model from that link — try Quick pick. Full listing autofill (any URL) needs the AI backend.' }); }
-  };
+  const isEst = (k) => !!(est && est.indexOf(k) !== -1);
   return (
     <div className={'panel ' + kind}>
       <div className="panel-head">
         <div className="ico">{ev ? I.bolt : I.fuel}</div>
         <div>
           <h2>{ev ? 'Electric' : 'Combustion'}</h2>
-          <div className="sub">{ev ? 'The new line' : 'The old line'}</div>
+          <div className="sub">{ev ? 'The alternative' : 'The car you found'}</div>
         </div>
         <div className="badge">{ev ? 'EV' : 'ICE'}</div>
       </div>
-      {opts.length > 0 && (
-        <div className="pick-row">
-          <label>Quick pick</label>
-          <select className="vpick" value="" onChange={(e) => pick(e.target.value)}>
-            <option value="">Choose a model to fill specs…</option>
-            {opts.map((s) => <option key={s.name} value={s.name}>{s.name} — R {group(s.price)}</option>)}
-          </select>
-        </div>
+      {head}
+      {chips && chips.length > 0 && (
+        <div className="chips">{chips.map((c, i) => <span key={i} className="chip">{c}</span>)}</div>
       )}
-      <div className="urlbar">
-        {I.link}
-        <input placeholder={ev ? 'Paste an EV listing link…' : 'Paste a car listing link…'}
-          value={url} onChange={(e) => setUrl(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') autofill(); }} />
-        <button onClick={autofill}>Autofill</button>
-      </div>
-      {msg && <div style={{ fontSize: 12, marginTop: 8, lineHeight: 1.45, color: msg.ok ? 'var(--ok)' : 'var(--fg-3)' }}>{msg.text}</div>}
       <div className="fields">
         <Field span text label="Vehicle" value={d.name} onChange={up('name')} />
         <Field span pre="R" label="Purchase price" value={d.price} onChange={up('price')} />
         <div className="frow">
-          <Field label={ev ? 'Energy use' : 'Fuel use'} suf={ev ? 'kWh/100' : 'L/100'} value={d.use} onChange={up('use')} />
-          <Field pre="R" suf={ev ? '/kWh' : '/L'} label={ev ? 'Electricity' : 'Petrol price'} value={d.fuel} onChange={up('fuel')} />
+          <Field label={ev ? 'Energy use' : 'Fuel use'} suf={ev ? 'kWh/100' : 'L/100'} value={d.use} onChange={up('use')} est={isEst('use')} />
+          <Field pre="R" suf={ev ? '/kWh' : '/L'} label={ev ? 'Electricity' : 'Fuel price'} value={d.fuel} onChange={up('fuel')} />
         </div>
         <div className="frow">
-          <Field pre="R" label="Insurance / yr" value={d.ins} onChange={up('ins')} />
-          <Field pre="R" label="Maintenance / yr" value={d.maint} onChange={up('maint')} />
+          <Field pre="R" label="Insurance / yr" value={d.ins} onChange={up('ins')} est={isEst('ins')} />
+          <Field pre="R" label="Maintenance / yr" value={d.maint} onChange={up('maint')} est={isEst('maint')} />
         </div>
-        <Field span suf="%/yr" label="Depreciation (sets resale value)" value={d.dep} onChange={up('dep')} />
+        <Field span suf="%/yr" label="Depreciation (sets resale value)" value={d.dep} onChange={up('dep')} est={isEst('dep')} />
       </div>
+    </div>
+  );
+}
+
+/* ---------- paste bar ---------- */
+function PasteBar({ onFound, onBusy }) {
+  const [url, setUrl] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  const go = async () => {
+    const t = url.trim();
+    if (!t) { setMsg({ ok: false, text: 'Paste a link to a car advert first.' }); return; }
+    setBusy(true); onBusy(true); setMsg(null);
+    try {
+      const data = await fetchListing(t);
+      onFound(data);
+      setMsg({ ok: true, text: 'Loaded “' + data.vehicle.name + '”' });
+    } catch (e) {
+      setMsg({ ok: false, text: (e && e.message) || 'Could not read that listing.' });
+      onFound(null);
+    } finally { setBusy(false); onBusy(false); }
+  };
+
+  return (
+    <div>
+      <div className="urlbar">
+        {I.link}
+        <input placeholder="Paste a car advert link (autotrader.co.za)…" value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !busy) go(); }} />
+        <button onClick={go} disabled={busy}>{busy ? 'Reading…' : 'Autofill'}</button>
+      </div>
+      {msg && <div className={'urlmsg' + (msg.ok ? ' ok' : '')}>{msg.text}</div>}
+    </div>
+  );
+}
+
+/* ---------- electric alternatives ---------- */
+// Live EV stock in the same money as the pasted car. Each card carries the one
+// number that matters — what it does to the total over the analysis period.
+function Alternatives({ list, loading, pickedUrl, onPick, base, annualKm, period, evRate }) {
+  if (loading) {
+    return <div className="alts"><div className="alt-skel" /><div className="alt-skel" /><div className="alt-skel" /></div>;
+  }
+  if (!list || !list.length) {
+    return (
+      <div className="alts empty">
+        Paste a car advert on the left and live electric alternatives in the same
+        price range appear here, each costed against it.
+      </div>
+    );
+  }
+  const baseNet = base && base.price ? netCost(base, annualKm, period) : null;
+  return (
+    <div className="alts">
+      <div className="alts-head">
+        <span className="t">Electric alternatives</span>
+        <span className="s">live stock · same price range</span>
+      </div>
+      {list.map((a) => {
+        // Must mirror pickAlt exactly, insurance included — the API doesn't
+        // return `ins`, and omitting it here made the card promise a saving
+        // ~R100k larger than the one you get after clicking it.
+        const cand = { price: a.price, use: a.use, fuel: evRate, ins: insFromPrice(a.price), maint: a.maint, dep: a.dep };
+        const net = netCost(cand, annualKm, period);
+        const delta = baseNet == null ? null : baseNet - net;
+        return (
+          <button key={a.id} className={'alt' + (pickedUrl === a.url ? ' on' : '')} onClick={() => onPick(a)}>
+            <div className="alt-top">
+              <span className="nm">{a.name}</span>
+              <span className="pr mono-num">{R(a.price)}</span>
+            </div>
+            <div className="alt-sub">
+              {[a.year, a.condition, a.transmission].filter(Boolean).join(' · ')}
+            </div>
+            {delta != null && (
+              <div className={'alt-delta' + (delta > 0 ? ' good' : ' bad')}>
+                {delta > 0 ? 'Saves ' : 'Costs '}{R(Math.abs(delta))}<span> over {period} yr vs the car you found</span>
+              </div>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -193,8 +254,14 @@ function Breakdown({ title, kind, items, total }) {
 
 /* ---------- app ---------- */
 function App() {
-  const [ice, setIce] = useState({ name: 'Toyota Corolla 1.8 XS', price: 449900, use: 6.6, fuel: 24.5, ins: 12000, maint: 9000, dep: 12 });
-  const [ev, setEv] = useState({ name: 'BYD Dolphin Comfort', price: 539900, use: 15.9, fuel: 3.30, ins: 14000, maint: 3500, dep: 18 });
+  const [ice, setIce] = useState({ name: '', price: 0, use: 0, fuel: 24.5, ins: 0, maint: 0, dep: 12 });
+  const [ev, setEv] = useState({ name: '', price: 0, use: 0, fuel: 3.30, ins: 0, maint: 0, dep: 18 });
+  const [alts, setAlts] = useState([]);          // live EV listings from the API
+  const [altsLoading, setAltsLoading] = useState(false);
+  const [picked, setPicked] = useState(null);    // which alternative is loaded into `ev`
+  const [iceEst, setIceEst] = useState([]);      // fields the API estimated rather than read
+  const [evEst, setEvEst] = useState([]);
+  const [listing, setListing] = useState(null);  // raw meta of the pasted advert
   const [monthlyKm, setMonthlyKm] = useState(2000);
   const [period, setPeriod] = useState(5);
   const [rates, setRates] = useState(null);
@@ -214,6 +281,31 @@ function App() {
       .catch(() => {});
     return () => { alive = false; };
   }, []);
+
+  // A pasted advert replaces the combustion side wholesale and reloads the
+  // electric alternatives. Insurance is the one figure we derive from price
+  // rather than the ad, using the same heuristic the panel has always used.
+  const onListing = (data) => {
+    if (!data) { setAlts([]); setPicked(null); setListing(null); return; }
+    const v = data.vehicle;
+    const est = (v.estimated || []).concat('ins');
+    if (v.powertrain === 'ev') {
+      setEv((p) => ({ ...p, name: v.name, price: v.price || 0, use: v.use, ins: insFromPrice(v.price), maint: v.maint, dep: v.dep }));
+      setEvEst(est);
+    } else {
+      setIce((p) => ({ ...p, name: v.name, price: v.price || 0, use: v.use, ins: insFromPrice(v.price), maint: v.maint, dep: v.dep }));
+      setIceEst(est);
+    }
+    setListing(v);
+    setAlts(data.alternatives || []);
+    setPicked(null);
+  };
+
+  const pickAlt = (a) => {
+    setEv((p) => ({ ...p, name: a.name, price: a.price || 0, use: a.use, ins: insFromPrice(a.price), maint: a.maint, dep: a.dep }));
+    setEvEst((a.estimated || []).concat('ins'));
+    setPicked(a);
+  };
 
   const annualKm = monthlyKm * 12;
   const iceFuel = annualKm / 100 * ice.use * ice.fuel;
@@ -264,13 +356,22 @@ function App() {
           <p>Set both cars and how you drive. The crossover chart shows the exact year electric pulls ahead — in rands, after resale.</p>
           <div className="rates-note">
             {rates ? <span>Fuel &amp; electricity prefilled from <b>{rates.source === 'stub' ? 'indicative SA rates' : 'live rates'} · {rates.asOf}</b>. </span> : null}
-            Every field is editable — or use <b>Quick pick</b> to load a model.
+            Paste any <b>autotrader.co.za</b> car advert — it fills itself in, and live electric
+            alternatives in the same price range appear on the right. Every field stays editable.
           </div>
         </div>
 
         <div className="calc-grid">
-          <Panel kind="ice" d={ice} set={setIce} specs={SPECS} />
-          <Panel kind="ev" d={ev} set={setEv} specs={SPECS} />
+          <Panel kind="ice" d={ice} set={setIce} est={iceEst}
+            chips={listing ? [
+              listing.year, listing.condition, listing.location,
+              listing.fuel, listing.body,
+            ].filter(Boolean) : null}
+            head={<PasteBar onFound={onListing} onBusy={setAltsLoading} />} />
+          <Panel kind="ev" d={ev} set={setEv} est={evEst}
+            chips={picked ? [picked.year, picked.condition, picked.transmission].filter(Boolean) : null}
+            head={<Alternatives list={alts} loading={altsLoading} pickedUrl={picked && picked.url}
+              onPick={pickAlt} base={ice} annualKm={annualKm} period={period} evRate={ev.fuel} />} />
         </div>
 
         <div className="usage">
