@@ -4,6 +4,9 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>ICE → EV · Sign in</title>
+<link rel="icon" href="favicon.ico" sizes="any"/>
+<link rel="icon" type="image/png" href="logo/mark-64.png"/>
+<link rel="apple-touch-icon" href="apple-touch-icon.png"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"/>
@@ -14,7 +17,6 @@
 <style>
   body{overflow-x:hidden;}
   .auth{display:grid;grid-template-columns:1.05fr 1fr;min-height:100vh;}
-  /* left cinematic panel */
   .auth-brand{position:relative;overflow:hidden;background:var(--bg-2);border-right:1px solid var(--line-2);
     display:flex;flex-direction:column;justify-content:space-between;padding:42px 52px;}
   .auth-band{position:absolute;top:-20%;right:-14%;width:62%;height:150%;transform:rotate(14deg);z-index:0;
@@ -35,10 +37,8 @@
   .ab-stats .l{font-size:12.5px;color:var(--fg-3);margin-top:4px;}
   .ab-foot{font-size:12.5px;color:var(--fg-3);}
 
-  /* right form panel */
   .auth-form{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:42px 32px;}
   .form-wrap{width:100%;max-width:392px;}
-  .form-wrap .top{display:flex;justify-content:flex-end;margin-bottom:auto;}
   .seg{display:flex;gap:4px;padding:4px;background:var(--surface);border:1px solid var(--line-2);border-radius:13px;margin-bottom:28px;}
   .seg button{flex:1;height:42px;border-radius:9px;border:none;background:transparent;color:var(--fg-2);font:inherit;
     font-size:14px;font-weight:500;cursor:pointer;transition:all .2s;}
@@ -58,8 +58,9 @@
   .remember .box{width:17px;height:17px;border-radius:5px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;}
   .remember .box.on{background:var(--accent);border-color:transparent;}
   .remember .box svg{width:11px;height:11px;color:var(--accent-ink);}
-  .forgot{font-size:13px;color:var(--accent);cursor:pointer;}
+  .forgot{font-size:13px;color:var(--accent);cursor:pointer;background:none;border:none;font:inherit;padding:0;}
   .btn-full{width:100%;justify-content:center;}
+  .btn-full[disabled]{opacity:.55;cursor:default;}
   .divider{display:flex;align-items:center;gap:14px;color:var(--fg-3);font-size:12px;margin:22px 0;}
   .divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line-2);}
   .socials{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
@@ -67,29 +68,41 @@
     font:inherit;font-size:14px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;
     transition:border-color .2s;}
   .social:hover{border-color:var(--fg-3);}
+  .social:disabled{opacity:.5;cursor:default;}
   .social svg{width:17px;height:17px;}
   .legal{font-size:12px;color:var(--fg-3);text-align:center;margin-top:24px;line-height:1.6;}
   .legal a{color:var(--fg-2);text-decoration:underline;text-underline-offset:2px;}
   .brand{display:flex;align-items:center;gap:11px;font-weight:600;font-size:15px;}
   .brand .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--glow);}
   .mob-top{display:none;align-items:center;justify-content:space-between;margin-bottom:26px;}
+
+  /* status / notice */
+  .note{border-radius:12px;padding:13px 15px;font-size:13.5px;line-height:1.5;margin-bottom:18px;border:1px solid var(--line-2);}
+  .note.err{border-color:color-mix(in srgb,#ff7a7a 40%,transparent);background:color-mix(in srgb,#ff7a7a 12%,var(--surface));color:#ffb3b3;}
+  .note.ok{border-color:color-mix(in srgb,var(--ok) 40%,transparent);background:color-mix(in srgb,var(--ok) 12%,var(--surface));color:var(--ok);}
+  .note.info{background:var(--surface);color:var(--fg-2);}
+  .note a{color:var(--accent);text-decoration:underline;}
+  .spin{width:16px;height:16px;border-radius:50%;border:2px solid color-mix(in srgb,var(--accent-ink) 40%,transparent);
+    border-top-color:var(--accent-ink);animation:spin .7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
   @media (max-width:880px){
     .auth{grid-template-columns:1fr;min-height:100vh;}
     .auth-brand{display:none;}
     .auth-form{padding:24px 22px;justify-content:flex-start;padding-top:38px;}
     .mob-top{display:flex;}
   }
-  @media (max-width:560px){
-    .socials{grid-template-columns:1fr;}
-    .form-wrap h1{font-size:24px;}
-  }
+  @media (max-width:560px){ .socials{grid-template-columns:1fr;} .form-wrap h1{font-size:24px;} }
 </style>
 </head>
 <body>
 <div id="root"></div>
+<script src="config.local.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase.js"></script>
 <script src="site.js"></script>
 <script type="text/babel">
-const { useState } = React;
+const { useState, useEffect } = React;
 const Mail = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>;
 const Lock = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>;
 const User = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="8" r="4"/><path d="M5 21c1.5-4 5-5 7-5s5.5 1 7 5"/></svg>;
@@ -98,18 +111,91 @@ const Check = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 const Google = () => <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22 12.2c0-.7-.1-1.4-.2-2H12v3.9h5.6a4.8 4.8 0 0 1-2 3.2v2.6h3.3c1.9-1.8 3-4.4 3-7.7z"/><path fill="#34A853" d="M12 22c2.7 0 5-.9 6.6-2.4l-3.3-2.6c-.9.6-2 .9-3.3.9-2.6 0-4.7-1.7-5.5-4.1H3.1v2.6A10 10 0 0 0 12 22z"/><path fill="#FBBC05" d="M6.5 13.8a6 6 0 0 1 0-3.6V7.6H3.1a10 10 0 0 0 0 8.8l3.4-2.6z"/><path fill="#EA4335" d="M12 6.5c1.5 0 2.8.5 3.8 1.5l2.9-2.9A10 10 0 0 0 3.1 7.6L6.5 10.2C7.3 7.9 9.4 6.5 12 6.5z"/></svg>;
 const Apple = () => <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.8c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9-.7 0-1.8-.8-3-.8-1.5 0-2.9.9-3.7 2.3-1.6 2.7-.4 6.8 1.1 9 .8 1.1 1.6 2.3 2.8 2.2 1.1 0 1.5-.7 2.9-.7 1.3 0 1.7.7 2.9.7 1.2 0 2-1.1 2.7-2.2.9-1.2 1.2-2.5 1.2-2.5s-2.3-.9-2.3-3.6zM14.3 5.8c.6-.8 1-1.8.9-2.8-.9 0-2 .6-2.6 1.3-.6.7-1.1 1.7-.9 2.7 1 .1 2-.5 2.6-1.2z"/></svg>;
 
+const params = new URLSearchParams(location.search);
+const NEXT = params.get('next');
+const target = () => NEXT || 'garage.html';
+
 function App() {
   const [mode, setMode] = useState('signin');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
   const [show, setShow] = useState(false);
   const [remember, setRemember] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [ok, setOk] = useState('');
   const signup = mode === 'signup';
+  const configured = window.DB && window.DB.configured;
+
+  // If a session already exists (returning user, or Google OAuth just returned
+  // to this page), forward straight to the app.
+  useEffect(() => {
+    if (!configured) return;
+    let done = false;
+    const go = (u) => { if (u && !done) { done = true; location.replace(target()); } };
+    window.DB.getUser().then(go);
+    const sub = window.DB.sb.auth.onAuthStateChange((_e, s) => go(s && s.user));
+    return () => sub.data.subscription.unsubscribe();
+  }, []);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setErr(''); setOk('');
+    if (!configured) { setErr('Backend not connected yet.'); return; }
+    if (!email.trim() || !pw) { setErr('Enter your email and password.'); return; }
+    if (signup && pw.length < 8) { setErr('Password must be at least 8 characters.'); return; }
+    setBusy(true);
+    try {
+      if (signup) {
+        const { data, error } = await window.DB.sb.auth.signUp({
+          email: email.trim(), password: pw,
+          options: { data: { full_name: name.trim() || undefined } }
+        });
+        if (error) throw error;
+        if (data.session) {
+          location.replace('profile.html');            // confirmed instantly → finish profile
+        } else {
+          setOk('Almost there — check your inbox to confirm your email, then sign in.');
+          setMode('signin');
+        }
+      } else {
+        const { error } = await window.DB.sb.auth.signInWithPassword({ email: email.trim(), password: pw });
+        if (error) throw error;
+        location.replace(target());
+      }
+    } catch (ex) {
+      setErr(friendly(ex));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const google = async () => {
+    setErr('');
+    if (!configured) { setErr('Backend not connected yet.'); return; }
+    const redirectTo = new URL('auth.html' + (NEXT ? '?next=' + encodeURIComponent(NEXT) : ''), location.href).href;
+    const { error } = await window.DB.sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
+    if (error) setErr(friendly(error));
+  };
+  const apple = () => setErr('Apple sign-in isn’t enabled on this project yet — use email or Google.');
+
+  const forgot = async () => {
+    setErr(''); setOk('');
+    if (!configured) { setErr('Backend not connected yet.'); return; }
+    if (!email.trim()) { setErr('Enter your email above first, then tap “Forgot password”.'); return; }
+    const { error } = await window.DB.sb.auth.resetPasswordForEmail(email.trim(),
+      { redirectTo: new URL('profile.html', location.href).href });
+    if (error) setErr(friendly(error));
+    else setOk('Password reset link sent — check your email.');
+  };
+
   return (
     <div className="auth">
       <div className="auth-brand">
         <div className="auth-band"/><div className="auth-scan"/>
         <div className="ab-top">
-          <a className="brand" href="index.html"><span className="dot"/>ICE&nbsp;→&nbsp;EV</a>
+          <a className="brand" href="index.html"><span className="logo3d" aria-hidden="true"><span className="tilt"><span className="faces"><img src="logo/mark-128.png" alt=""/></span></span></span>ICE&nbsp;→&nbsp;EV</a>
           <div className="toggle" role="group" aria-label="Theme">
             <button data-theme-btn="light" aria-label="Light"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg></button>
             <button data-theme-btn="dark" aria-label="Dark"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
@@ -117,7 +203,7 @@ function App() {
         </div>
         <div className="ab-mid">
           <h2>Ice<br/><span className="to">to</span> <span className="ev">Ev</span></h2>
-          <p>Your honest co-pilot for the switch — every rand of petrol, power and upkeep, modelled before you commit.</p>
+          <p>Join The Garage — the community for car people making the switch. Post your ride, rate dealers, ask real EV owners anything.</p>
           <div className="ab-stats">
             <div><div className="v">R76<span className="u">k</span></div><div className="l">Avg. saved / year</div></div>
             <div><div className="v">3.2<span className="u"> yr</span></div><div className="l">Typical break-even</div></div>
@@ -129,34 +215,43 @@ function App() {
       <div className="auth-form">
         <div className="form-wrap">
           <div className="mob-top">
-            <a className="brand" href="index.html"><span className="dot"/>ICE&nbsp;→&nbsp;EV</a>
+            <a className="brand" href="index.html"><span className="logo3d" aria-hidden="true"><span className="tilt"><span className="faces"><img src="logo/mark-128.png" alt=""/></span></span></span>ICE&nbsp;→&nbsp;EV</a>
             <div className="toggle" role="group" aria-label="Theme">
               <button data-theme-btn="light" aria-label="Light"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg></button>
               <button data-theme-btn="dark" aria-label="Dark"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
             </div>
           </div>
           <div className="seg">
-            <button className={!signup?'on':''} onClick={()=>setMode('signin')}>Sign in</button>
-            <button className={signup?'on':''} onClick={()=>setMode('signup')}>Create account</button>
+            <button className={!signup?'on':''} onClick={()=>{setMode('signin');setErr('');setOk('');}}>Sign in</button>
+            <button className={signup?'on':''} onClick={()=>{setMode('signup');setErr('');setOk('');}}>Create account</button>
           </div>
           <h1>{signup ? 'Start your switch.' : 'Welcome back.'}</h1>
-          <div className="lead">{signup ? 'Free to use — no card, no commitment.' : 'Pick up right where you left off.'}</div>
+          <div className="lead">{signup ? 'Free to join — no card, no commitment.' : 'Pick up right where you left off.'}</div>
 
-          <form onSubmit={(e)=>e.preventDefault()}>
+          {!configured && (
+            <div className="note info">
+              Backend not connected. Add your Supabase keys to <b>config.local.js</b> to enable sign-in.
+              See <a href="https://supabase.com" target="_blank" rel="noopener">setup guide</a> (supabase/README.md).
+            </div>
+          )}
+          {err && <div className="note err">{err}</div>}
+          {ok && <div className="note ok">{ok}</div>}
+
+          <form onSubmit={submit}>
             {signup && (
               <div className="field">
                 <label>Full name</label>
-                <div className="inp"><User/><input type="text" placeholder="Thandi Mokoena" /></div>
+                <div className="inp"><User/><input type="text" value={name} onChange={(e)=>setName(e.target.value)} placeholder="Thandi Mokoena" autoComplete="name" /></div>
               </div>
             )}
             <div className="field">
               <label>Email</label>
-              <div className="inp"><Mail/><input type="email" placeholder="you@example.co.za" /></div>
+              <div className="inp"><Mail/><input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="you@example.co.za" autoComplete="email" /></div>
             </div>
             <div className="field">
               <label>Password</label>
               <div className="inp"><Lock/>
-                <input type={show?'text':'password'} value={pw} onChange={(e)=>setPw(e.target.value)} placeholder={signup?'At least 8 characters':'••••••••'} />
+                <input type={show?'text':'password'} value={pw} onChange={(e)=>setPw(e.target.value)} placeholder={signup?'At least 8 characters':'••••••••'} autoComplete={signup?'new-password':'current-password'} />
                 <span className="eye" onClick={()=>setShow(!show)} style={{color:'var(--fg-3)',display:'flex'}}><Eye/></span>
               </div>
             </div>
@@ -165,15 +260,17 @@ function App() {
                 <span className={'box'+(remember?' on':'')}>{remember && <Check/>}</span>
                 {signup ? 'Email me switch tips' : 'Remember me'}
               </span>
-              {!signup && <span className="forgot">Forgot password?</span>}
+              {!signup && <button type="button" className="forgot" onClick={forgot}>Forgot password?</button>}
             </div>
-            <a className="btn btn-accent btn-full" href="profile.html">{signup ? 'Create account' : 'Sign in'} <span className="arr">→</span></a>
+            <button className="btn btn-accent btn-full" type="submit" disabled={busy || !configured}>
+              {busy ? <span className="spin"/> : <>{signup ? 'Create account' : 'Sign in'} <span className="arr">→</span></>}
+            </button>
           </form>
 
           <div className="divider">or continue with</div>
           <div className="socials">
-            <button className="social"><Google/> Google</button>
-            <button className="social"><Apple/> Apple</button>
+            <button className="social" onClick={google} disabled={!configured}><Google/> Google</button>
+            <button className="social" onClick={apple}><Apple/> Apple</button>
           </div>
           <div className="legal">
             By continuing you agree to our <a href="#">Terms</a> and <a href="#">Privacy Policy</a>.
@@ -183,6 +280,21 @@ function App() {
     </div>
   );
 }
+
+function friendly(ex) {
+  const m = (ex && ex.message) || String(ex);
+  // A paused/deleted Supabase project stops resolving, so every auth call fails
+  // at the transport layer. Without this it reads as "TypeError: Failed to fetch".
+  if (window.DB && window.DB.isNetworkError(ex)) {
+    return 'Can’t reach the account service. Your Supabase project looks paused or offline — resume it, or update site/config.local.js.';
+  }
+  if (/Invalid login credentials/i.test(m)) return 'That email and password don’t match. Try again or reset your password.';
+  if (/already registered|already exists/i.test(m)) return 'That email already has an account — try signing in.';
+  if (/Email not confirmed/i.test(m)) return 'Please confirm your email first (check your inbox), then sign in.';
+  if (/rate limit|too many/i.test(m)) return 'Too many attempts — give it a minute and try again.';
+  return m;
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
 </body>
