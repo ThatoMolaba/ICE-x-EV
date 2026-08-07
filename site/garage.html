@@ -121,6 +121,85 @@
   .comment .ctext{font-size:14px;color:var(--fg);line-height:1.5;margin-top:2px;white-space:pre-wrap;word-wrap:break-word;}
   .cempty{font-size:13px;color:var(--fg-3);text-align:center;padding:6px 0 12px;}
 
+  /* ---------- dealerships ---------- */
+  .d-tools{display:flex;gap:8px;margin-bottom:14px;}
+  .d-tools input{flex:1;min-width:0;height:40px;border-radius:11px;border:1px solid var(--line);background:var(--bg-2);
+    color:var(--fg);font:inherit;font-size:13.5px;padding:0 13px;outline:none;transition:border-color .2s;}
+  .d-tools input:focus{border-color:color-mix(in srgb,var(--accent) 50%,transparent);}
+  .d-tools button{height:40px;padding:0 15px;border-radius:11px;border:1px solid var(--line);background:var(--bg-2);
+    color:var(--fg-2);font:inherit;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;transition:all .2s;}
+  .d-tools button:hover{border-color:var(--fg-3);color:var(--fg);}
+
+  .dealer{background:var(--surface);border:1px solid var(--line-2);border-radius:18px;padding:16px 18px;margin-bottom:12px;
+    cursor:pointer;transition:border-color .2s;}
+  .dealer:hover{border-color:var(--fg-3);}
+  .dealer.open{border-color:color-mix(in srgb,var(--accent) 45%,transparent);cursor:default;}
+  .d-top{display:flex;align-items:center;gap:13px;}
+  .rank{width:34px;height:34px;flex:0 0 auto;border-radius:10px;display:flex;align-items:center;justify-content:center;
+    font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;background:var(--bg-2);color:var(--fg-3);
+    border:1px solid var(--line-2);}
+  .rank.top{background:var(--accent);color:var(--accent-ink);border-color:transparent;}
+  .d-id{flex:1;min-width:0;}
+  .d-id h3{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:600;letter-spacing:-0.01em;}
+  .d-id .sub{font-size:12.5px;color:var(--fg-3);margin-top:2px;}
+  .d-score{text-align:right;flex:0 0 auto;}
+  .d-score .v{font-family:'Space Grotesk',sans-serif;font-size:21px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1;}
+  .d-score .n{font-size:11.5px;color:var(--fg-3);margin-top:3px;}
+  .d-score .unrated{font-size:12px;color:var(--fg-3);}
+
+  .axes{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px;}
+  .axis .k{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--fg-3);display:flex;
+    justify-content:space-between;gap:6px;}
+  .axis .k b{color:var(--fg-2);font-variant-numeric:tabular-nums;}
+  .axis .bar{height:5px;border-radius:99px;background:var(--bg-2);margin-top:5px;overflow:hidden;}
+  .axis .bar i{display:block;height:100%;border-radius:99px;background:var(--accent);transition:width .5s cubic-bezier(.2,.7,.2,1);}
+
+  .d-body{border-top:1px solid var(--line-2);margin-top:16px;padding-top:16px;}
+  .d-sec{margin-bottom:20px;}
+  .d-sec > h4{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg-3);margin-bottom:10px;
+    display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .d-sec > h4 button{border:none;background:none;color:var(--accent);font:inherit;font-size:12px;cursor:pointer;
+    text-transform:none;letter-spacing:0;padding:0;}
+
+  .review{border-top:1px solid var(--line-2);padding:12px 0;}
+  .review:first-of-type{border-top:0;padding-top:0;}
+  .review .rh{display:flex;align-items:center;gap:9px;}
+  .review .rh .who{flex:1;min-width:0;font-size:13.5px;font-weight:600;}
+  .review .rh .when{font-size:12px;color:var(--fg-3);}
+  .review .rt{font-size:14px;line-height:1.55;color:var(--fg-2);margin-top:8px;white-space:pre-wrap;}
+  .review .rax{display:flex;gap:12px;margin-top:8px;font-size:11.5px;color:var(--fg-3);}
+  .review .rax b{color:var(--fg-2);}
+
+  .sp{display:flex;align-items:flex-start;gap:11px;border-top:1px solid var(--line-2);padding:12px 0;}
+  .sp:first-of-type{border-top:0;padding-top:0;}
+  .sp .spb{flex:1;min-width:0;}
+  .sp .spn{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .sp .cnt{font-size:11px;color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 34%,transparent);
+    border-radius:999px;padding:2px 8px;font-weight:500;}
+  .sp .nom{font-size:13px;color:var(--fg-2);line-height:1.5;margin-top:6px;padding-left:11px;
+    border-left:2px solid var(--line);}
+  .sp .nom .by{color:var(--fg-3);font-size:11.5px;}
+
+  /* star control */
+  .stars{display:inline-flex;gap:3px;}
+  .stars button{border:none;background:none;padding:0;cursor:pointer;line-height:0;color:var(--fg-3);}
+  .stars button[disabled]{cursor:default;}
+  .stars svg{width:19px;height:19px;}
+  .stars .on{color:var(--warn);}
+  .stars.sm svg{width:14px;height:14px;}
+
+  .rate-form{background:var(--bg-2);border:1px solid var(--line-2);border-radius:14px;padding:15px;}
+  .rate-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 0;}
+  .rate-row .k{font-size:13.5px;color:var(--fg-2);}
+  .rate-form textarea{width:100%;margin-top:10px;background:var(--surface);border:1px solid var(--line-2);border-radius:11px;
+    color:var(--fg);font:inherit;font-size:14px;padding:11px 13px;resize:vertical;min-height:78px;outline:none;line-height:1.5;}
+  .rate-form textarea:focus{border-color:color-mix(in srgb,var(--accent) 50%,transparent);}
+  .rate-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:11px;}
+  .mini-in{display:flex;gap:8px;margin-top:4px;}
+  .mini-in input{flex:1;min-width:0;height:38px;border-radius:10px;border:1px solid var(--line-2);background:var(--surface);
+    color:var(--fg);font:inherit;font-size:13.5px;padding:0 12px;outline:none;}
+  .mini-in input:focus{border-color:color-mix(in srgb,var(--accent) 50%,transparent);}
+
   .state{max-width:640px;margin:160px auto;text-align:center;color:var(--fg-2);padding:0 20px;}
   .state h2{font-family:'Space Grotesk',sans-serif;font-size:22px;color:var(--fg);margin-bottom:10px;}
   .state a{color:var(--accent);}
@@ -201,7 +280,69 @@ const Ico = {
   X: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>,
   Send: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>,
   Verified: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l2.4 2.1 3.2-.3.9 3.1 2.6 1.9-1.3 2.9 1.3 2.9-2.6 1.9-.9 3.1-3.2-.3L12 22l-2.4-2.1-3.2.3-.9-3.1L2.9 15l1.3-2.9L2.9 9.2l2.6-1.9.9-3.1 3.2.3z"/><path d="M9 12l2 2 4-4"/></svg>,
+  Star: ({ filled }) => <svg viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"><path d="M12 3l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 20.9l1.1-6.5L2.6 9.8l6.5-.9z"/></svg>,
+  Shop: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M4 9h16v11H4z"/><path d="M9 20v-6h6v6"/></svg>,
 };
+
+/* ---------- dealership ratings ----------
+   The 1-5 axes and the one-rating-per-user rule come straight from
+   supabase/schema.sql: dealer_ratings(service, price, honesty, review) with a
+   unique (dealer_id, user_id), plus the dealer_scores view for the averages
+   the ranking sorts on. */
+const AXES = [
+  ['service', 'Service'],
+  ['price', 'Price'],
+  ['honesty', 'Honesty'],
+];
+
+function Stars({ value, onChange, small }) {
+  const readOnly = !onChange;
+  return (
+    <span className={'stars' + (small ? ' sm' : '')} role={readOnly ? 'img' : 'radiogroup'}
+          aria-label={readOnly ? (value + ' out of 5') : undefined}>
+      {[1, 2, 3, 4, 5].map(n => (
+        <button key={n} type="button" disabled={readOnly} className={n <= value ? 'on' : ''}
+          aria-label={n + ' star' + (n > 1 ? 's' : '')}
+          onClick={readOnly ? undefined : () => onChange(n)}>
+          <Ico.Star filled={n <= value} />
+        </button>
+      ))}
+    </span>
+  );
+}
+
+// Average of the three axes, shown on the card and used for the ranking.
+const overallOf = (s) => (s && s.avg_overall != null) ? Number(s.avg_overall) : null;
+
+function RateForm({ mine, onSave, onCancel, busy }) {
+  const [v, setV] = useState({
+    service: (mine && mine.service) || 0,
+    price: (mine && mine.price) || 0,
+    honesty: (mine && mine.honesty) || 0,
+  });
+  const [review, setReview] = useState((mine && mine.review) || '');
+  const complete = v.service && v.price && v.honesty;
+  return (
+    <div className="rate-form">
+      {AXES.map(([k, label]) => (
+        <div className="rate-row" key={k}>
+          <span className="k">{label}</span>
+          <Stars value={v[k]} onChange={(n) => setV(p => ({ ...p, [k]: n }))} />
+        </div>
+      ))}
+      <textarea value={review} onChange={(e) => setReview(e.target.value)}
+        placeholder="What was the experience actually like? Pricing, honesty, delivery, after-sales…" />
+      <div className="rate-actions">
+        <button className="btn btn-ghost btn-sm" onClick={onCancel}>Cancel</button>
+        <button className="btn btn-accent btn-sm" disabled={!complete || busy}
+          onClick={() => onSave({ ...v, review: review.trim() })}>
+          {busy ? 'Saving…' : mine ? 'Update rating' : 'Post rating'}
+        </button>
+      </div>
+      {!complete && <div style={{fontSize:'12px',color:'var(--fg-3)',marginTop:'8px'}}>Score all three to post.</div>}
+    </div>
+  );
+}
 
 function Avatar({ profile, cls }) {
   const url = DB.avatarUrl(profile);
@@ -413,15 +554,319 @@ function DemoBar({ onClose }) {
         <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4.5M12 17h.01"/>
       </svg>
       <div className="tx">
-        <div className="t">Demo mode — these are sample posts</div>
+        <div className="t">Demo mode — this is sample data</div>
         <div className="s">
-          <b>{host}</b> isn’t responding, so the feed below is local sample data and posting is
-          disabled. A free Supabase project is paused after about a week idle, which removes its
+          <b>{host}</b> isn’t responding, so the posts and dealerships below are local
+          sample data and nothing can be saved. A free Supabase project is paused after about a week idle, which removes its
           subdomain — resume it in the dashboard, or point <b>config.local.js</b> at a new project
           and re-run <b>supabase/schema.sql</b>.
         </div>
       </div>
       <button className="x" onClick={onClose} aria-label="Dismiss"><Ico.X/></button>
+    </div>
+  );
+}
+
+function Dealer({ d, rank, open, onOpen, me, demo, flash, onRated, onAddedSp }) {
+  const [detail, setDetail] = useState(null);   // { reviews, sps }
+  const [rating, setRating] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [spName, setSpName] = useState('');
+  const [nomFor, setNomFor] = useState(null);
+  const [nomText, setNomText] = useState('');
+
+  const s = d.scores || {};
+  const overall = overallOf(s);
+  const mine = detail && me ? detail.reviews.find(r => r.author && r.author.id === me.id) : null;
+
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    if (demo) {
+      const D = window.GARAGE_DEMO || {};
+      setDetail({
+        reviews: (D.dealerRatings || {})[d.id] || [],
+        sps: (D.salespeople || {})[d.id] || [],
+      });
+      return;
+    }
+    (async () => {
+      const [r, sp] = await Promise.all([
+        DB.sb.from('dealer_ratings')
+          .select('id,service,price,honesty,review,created_at,author:profiles(id,handle,display_name,avatar_url)')
+          .eq('dealer_id', d.id).order('created_at', { ascending: false }),
+        DB.sb.from('salespeople').select('id,name').eq('dealer_id', d.id),
+      ]);
+      if (!alive) return;
+      const sps = sp.data || [];
+      // Nominations are fetched per-dealer rather than embedded: the schema
+      // links them to salespeople, not to the dealer.
+      let noms = [];
+      if (sps.length) {
+        const n = await DB.sb.from('salesperson_nominations')
+          .select('salesperson_id,reason,created_at,author:profiles(id,handle,display_name)')
+          .in('salesperson_id', sps.map(x => x.id));
+        noms = n.data || [];
+      }
+      if (!alive) return;
+      setDetail({
+        reviews: r.data || [],
+        sps: sps.map(x => ({ ...x, noms: noms.filter(n => n.salesperson_id === x.id) })),
+      });
+    })();
+    return () => { alive = false; };
+  }, [open, d.id, demo]);
+
+  // Opening a form and submitting it need different gates. In demo mode the
+  // form must still open — otherwise the rating UI is unreachable and cannot be
+  // reviewed at all — but the write is refused.
+  const canOpen = () => {
+    if (demo) return true;
+    if (!me) { location.href = 'auth.html?next=' + encodeURIComponent('garage.html'); return false; }
+    return true;
+  };
+  const guard = () => {
+    if (demo) { flash('Demo mode — connect Supabase to save this'); return false; }
+    if (!me) { location.href = 'auth.html?next=' + encodeURIComponent('garage.html'); return false; }
+    return true;
+  };
+
+  const saveRating = async (vals) => {
+    if (!guard()) return;
+    setBusy(true);
+    try {
+      // upsert on the unique (dealer_id, user_id) — one rating per person.
+      const { error } = await DB.sb.from('dealer_ratings')
+        .upsert({ dealer_id: d.id, user_id: me.id, ...vals }, { onConflict: 'dealer_id,user_id' });
+      if (error) throw error;
+      setRating(false);
+      flash(mine ? 'Rating updated' : 'Thanks — rating posted');
+      onRated();
+    } catch (ex) { flash('Could not save: ' + ((ex && ex.message) || ex)); }
+    finally { setBusy(false); }
+  };
+
+  const addSp = async () => {
+    if (!spName.trim()) return;
+    if (!guard()) return;
+    try {
+      const { error } = await DB.sb.from('salespeople').insert({ dealer_id: d.id, name: spName.trim() });
+      if (error) throw error;
+      setSpName(''); flash('Sales executive added'); onAddedSp(d.id);
+    } catch (ex) { flash('Could not add: ' + ((ex && ex.message) || ex)); }
+  };
+
+  const nominate = async (spId) => {
+    if (!nomText.trim()) return;
+    if (!guard()) return;
+    try {
+      const { error } = await DB.sb.from('salesperson_nominations')
+        .insert({ salesperson_id: spId, user_id: me.id, reason: nomText.trim() });
+      if (error) throw error;
+      setNomText(''); setNomFor(null); flash('Shout-out posted'); onAddedSp(d.id);
+    } catch (ex) { flash('Could not post: ' + ((ex && ex.message) || ex)); }
+  };
+
+  return (
+    <div className={'dealer' + (open ? ' open' : '')} onClick={open ? undefined : () => onOpen(d.id)}>
+      <div className="d-top">
+        <span className={'rank' + (rank <= 3 && overall != null ? ' top' : '')}>{overall == null ? '–' : rank}</span>
+        <div className="d-id">
+          <h3>{d.name}</h3>
+          <div className="sub">{[d.brand, d.area].filter(Boolean).join(' · ')}</div>
+        </div>
+        <div className="d-score">
+          {overall == null
+            ? <div className="unrated">Not yet rated</div>
+            : <>
+                <div className="v">{overall.toFixed(1)}</div>
+                <div className="n">{s.rating_count} rating{s.rating_count === 1 ? '' : 's'}</div>
+              </>}
+        </div>
+      </div>
+
+      {overall != null && (
+        <div className="axes">
+          {AXES.map(([k, label]) => {
+            const val = s['avg_' + k] == null ? 0 : Number(s['avg_' + k]);
+            return (
+              <div className="axis" key={k}>
+                <div className="k"><span>{label}</span><b>{val ? val.toFixed(1) : '–'}</b></div>
+                <div className="bar"><i style={{ width: (val / 5 * 100) + '%' }} /></div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {open && (
+        <div className="d-body" onClick={(e) => e.stopPropagation()}>
+          <div className="d-sec">
+            <h4>
+              <span>Reviews{detail ? ' · ' + detail.reviews.length : ''}</span>
+              {!rating && <button onClick={() => canOpen() && setRating(true)}>{mine ? 'Edit your rating' : 'Rate this dealer'}</button>}
+            </h4>
+            {rating
+              ? <RateForm mine={mine} busy={busy} onSave={saveRating} onCancel={() => setRating(false)} />
+              : !detail ? <div style={{fontSize:'13px',color:'var(--fg-3)'}}>Loading…</div>
+              : detail.reviews.length === 0
+                ? <div style={{fontSize:'13px',color:'var(--fg-3)'}}>No reviews yet — be the first.</div>
+                : detail.reviews.map(r => (
+                    <div className="review" key={r.id}>
+                      <div className="rh">
+                        <Avatar profile={r.author} cls="sm" />
+                        <span className="who">{r.author ? r.author.display_name : 'Member'}</span>
+                        <span className="when">{DB.timeAgo(r.created_at)}</span>
+                      </div>
+                      <div className="rax">
+                        {AXES.map(([k, label]) => (
+                          <span key={k}>{label} <b>{r[k]}</b>/5</span>
+                        ))}
+                      </div>
+                      {r.review && <div className="rt">{r.review}</div>}
+                    </div>
+                  ))}
+          </div>
+
+          <div className="d-sec">
+            <h4><span>Sales executives{detail ? ' · ' + detail.sps.length : ''}</span></h4>
+            {detail && detail.sps.map(sp => (
+              <div className="sp" key={sp.id}>
+                <Avatar profile={{ display_name: sp.name }} cls="sm" />
+                <div className="spb">
+                  <div className="spn">
+                    {sp.name}
+                    {sp.noms.length > 0 && <span className="cnt">{sp.noms.length} shout-out{sp.noms.length === 1 ? '' : 's'}</span>}
+                    <button style={{border:'none',background:'none',color:'var(--accent)',font:'inherit',fontSize:'12px',cursor:'pointer',padding:0}}
+                      onClick={() => { if (nomFor !== sp.id && !canOpen()) return; setNomFor(nomFor === sp.id ? null : sp.id); setNomText(''); }}>
+                      {nomFor === sp.id ? 'Cancel' : 'Give a shout-out'}
+                    </button>
+                  </div>
+                  {sp.noms.map((n, i) => (
+                    <div className="nom" key={i}>{n.reason}
+                      <div className="by">— {n.author ? n.author.display_name : 'Member'}</div>
+                    </div>
+                  ))}
+                  {nomFor === sp.id && (
+                    <div className="mini-in">
+                      <input value={nomText} placeholder="What did they do well?"
+                        onChange={(e) => setNomText(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') nominate(sp.id); }} />
+                      <button className="btn btn-accent btn-sm" onClick={() => nominate(sp.id)}>Post</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+            <div className="mini-in" style={{ marginTop: detail && detail.sps.length ? '12px' : '0' }}>
+              <input value={spName} placeholder="Add a sales executive by name…"
+                onChange={(e) => setSpName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') addSp(); }} />
+              <button className="btn btn-ghost btn-sm" onClick={addSp}>Add</button>
+            </div>
+          </div>
+
+          <button className="btn btn-ghost btn-sm" onClick={() => onOpen(null)}>Close</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Dealers({ me, demo, flash }) {
+  const [rows, setRows] = useState(null);
+  const [err, setErr] = useState(null);
+  const [openId, setOpenId] = useState(null);
+  const [q, setQ] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [nu, setNu] = useState({ name: '', brand: '', area: '' });
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    if (demo) { setRows((window.GARAGE_DEMO && window.GARAGE_DEMO.dealers) || []); return; }
+    (async () => {
+      try {
+        // dealer_scores is a view keyed by dealer_id; PostgREST can't reliably
+        // embed it, so fetch both and join on the client.
+        const [d, s] = await Promise.all([
+          DB.sb.from('dealers').select('id,name,brand,area'),
+          DB.sb.from('dealer_scores').select('*'),
+        ]);
+        if (!alive) return;
+        if (d.error) throw d.error;
+        const byId = {};
+        (s.data || []).forEach(x => { byId[x.dealer_id] = x; });
+        setRows((d.data || []).map(x => ({ ...x, scores: byId[x.id] || null })));
+      } catch (ex) {
+        if (!alive) return;
+        setErr(DB.isNetworkError(ex) ? 'Backend unreachable.' : ((ex && ex.message) || String(ex)));
+      }
+    })();
+    return () => { alive = false; };
+  }, [demo, tick]);
+
+  const addDealer = async () => {
+    if (demo) { flash('Demo mode — connect Supabase to add a dealership'); return; }
+    if (!me) { location.href = 'auth.html?next=' + encodeURIComponent('garage.html'); return; }
+    if (!nu.name.trim()) return;
+    try {
+      const { error } = await DB.sb.from('dealers')
+        .insert({ name: nu.name.trim(), brand: nu.brand.trim() || null, area: nu.area.trim() || null, created_by: me.id });
+      if (error) throw error;
+      setNu({ name: '', brand: '', area: '' }); setAdding(false);
+      flash('Dealership added'); setTick(t => t + 1);
+    } catch (ex) { flash('Could not add: ' + ((ex && ex.message) || ex)); }
+  };
+
+  if (err) return <div className="state" style={{margin:'60px auto'}}><h2>Couldn’t load dealerships</h2><p>{err}</p></div>;
+  if (!rows) return <><div className="skeleton"/><div className="skeleton"/></>;
+
+  // Ranked by overall score, then by how many people backed it. Unrated
+  // dealerships sort last rather than pretending to a position.
+  const term = q.trim().toLowerCase();
+  const shown = rows
+    .filter(d => !term || (d.name + ' ' + (d.brand || '') + ' ' + (d.area || '')).toLowerCase().includes(term))
+    .slice()
+    .sort((a, b) => {
+      const av = overallOf(a.scores), bv = overallOf(b.scores);
+      if (av == null && bv == null) return a.name.localeCompare(b.name);
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      if (bv !== av) return bv - av;
+      return (b.scores.rating_count || 0) - (a.scores.rating_count || 0);
+    });
+
+  return (
+    <div>
+      <div className="d-tools">
+        <input value={q} placeholder="Search dealerships, brand or area…" onChange={(e) => setQ(e.target.value)} />
+        <button onClick={() => setAdding(a => !a)}>{adding ? 'Cancel' : '+ Dealership'}</button>
+      </div>
+
+      {adding && (
+        <div className="rate-form" style={{ marginBottom: '14px' }}>
+          <div className="mini-in"><input value={nu.name} placeholder="Dealership name" onChange={(e) => setNu({ ...nu, name: e.target.value })} /></div>
+          <div className="mini-in" style={{ marginTop: '8px' }}>
+            <input value={nu.brand} placeholder="Brand (optional)" onChange={(e) => setNu({ ...nu, brand: e.target.value })} />
+            <input value={nu.area} placeholder="Area (optional)" onChange={(e) => setNu({ ...nu, area: e.target.value })} />
+          </div>
+          <div className="rate-actions">
+            <button className="btn btn-accent btn-sm" disabled={!nu.name.trim()} onClick={addDealer}>Add dealership</button>
+          </div>
+        </div>
+      )}
+
+      {shown.length === 0
+        ? <div className="state" style={{margin:'50px auto'}}>
+            <h2>{term ? 'No match' : 'No dealerships yet'}</h2>
+            <p>{term ? 'Try a different name, brand or area.' : 'Add the first one and start the ranking.'}</p>
+          </div>
+        : shown.map((d, i) => (
+            <Dealer key={d.id} d={d} rank={i + 1} open={openId === d.id}
+              onOpen={setOpenId} me={me} demo={demo} flash={flash}
+              onRated={() => setTick(t => t + 1)} onAddedSp={() => setTick(t => t + 1)} />
+          ))}
     </div>
   );
 }
@@ -433,6 +878,7 @@ function App() {
   const [posts, setPosts] = useState([]);
   const [liked, setLiked] = useState(new Set());
   const [filter, setFilter] = useState('all');     // all | following
+  const [tab, setTab] = useState('feed');          // feed | dealers
   const [followingIds, setFollowingIds] = useState(new Set());
   const [live, setLive] = useState(false);
   const [toast, setToast] = useState('');
@@ -618,35 +1064,47 @@ function App() {
           <div className="eyebrow">The Garage <span className="pp">Community</span>
             <span className={'live' + (live ? '' : ' off')}><span className="d"/>{live ? 'Live' : demo ? 'Demo' : 'Feed'}</span>
           </div>
-          <h1>Twitter for car people.</h1>
-          <p>Post your ride, swap switch stories, and see what South Africa’s drivers are moving to.</p>
+          {tab === 'dealers'
+            ? <>
+                <h1>Who to buy from.</h1>
+                <p>Dealerships ranked by the people who actually bought there — service, price and honesty, scored separately.</p>
+              </>
+            : <>
+                <h1>Twitter for car people.</h1>
+                <p>Post your ride, swap switch stories, and see what South Africa’s drivers are moving to.</p>
+              </>}
         </div>
 
         <div className="seg">
-          <button className={filter==='all'?'on':''} onClick={()=>switchFilter('all')}>For you</button>
-          <button className={filter==='following'?'on':''} onClick={()=>switchFilter('following')}>Following</button>
+          <button className={tab==='feed' && filter==='all'?'on':''} onClick={()=>{setTab('feed'); switchFilter('all');}}>For you</button>
+          <button className={tab==='feed' && filter==='following'?'on':''} onClick={()=>{setTab('feed'); switchFilter('following');}}>Following</button>
+          <button className={tab==='dealers'?'on':''} onClick={()=>setTab('dealers')}>Dealerships</button>
         </div>
 
-        {demo
-          ? (showBar && <DemoBar onClose={()=>setShowBar(false)} />)
-          : me
-            ? <Composer me={me} onPosted={onPosted} flash={flash} />
-            : <div className="join">
-                <div className="tx"><div className="t">Join the conversation</div><div className="s">Sign in to post, like and comment.</div></div>
-                <a className="btn btn-accent btn-sm" href={'auth.html?next=' + encodeURIComponent('garage.html')}>Sign in <span className="arr">→</span></a>
-              </div>}
+        {demo && showBar && <DemoBar onClose={()=>setShowBar(false)} />}
 
-        {state === 'loading'
-          ? <><div className="skeleton"/><div className="skeleton"/></>
-          : posts.length === 0
-            ? <div className="state" style={{margin:'60px auto'}}>
-                <h2>{filter === 'following' ? 'Nothing here yet' : 'Be the first to post'}</h2>
-                <p>{filter === 'following' ? 'Follow some members to fill this feed.' : 'Share your car or your switch story to kick things off.'}</p>
-              </div>
-            : posts.map(p => (
-                <Post key={p.id} post={p} me={me} liked={liked.has(p.id)} onToggleLike={toggleLike}
-                      flash={flash} highlight={highlight === p.id} demo={demo} />
-              ))}
+        {tab === 'dealers'
+          ? <Dealers me={me} demo={demo} flash={flash} />
+          : <>
+            {!demo && (me
+              ? <Composer me={me} onPosted={onPosted} flash={flash} />
+              : <div className="join">
+                  <div className="tx"><div className="t">Join the conversation</div><div className="s">Sign in to post, like and comment.</div></div>
+                  <a className="btn btn-accent btn-sm" href={'auth.html?next=' + encodeURIComponent('garage.html')}>Sign in <span className="arr">→</span></a>
+                </div>)}
+
+            {state === 'loading'
+              ? <><div className="skeleton"/><div className="skeleton"/></>
+              : posts.length === 0
+                ? <div className="state" style={{margin:'60px auto'}}>
+                    <h2>{filter === 'following' ? 'Nothing here yet' : 'Be the first to post'}</h2>
+                    <p>{filter === 'following' ? 'Follow some members to fill this feed.' : 'Share your car or your switch story to kick things off.'}</p>
+                  </div>
+                : posts.map(p => (
+                    <Post key={p.id} post={p} me={me} liked={liked.has(p.id)} onToggleLike={toggleLike}
+                          flash={flash} highlight={highlight === p.id} demo={demo} />
+                  ))}
+          </>}
       </div>
       {toast && <div className="toast"><span className="d"/>{toast}</div>}
     </div>

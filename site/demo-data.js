@@ -146,10 +146,87 @@
     ]
   };
 
+  // ---- dealerships -------------------------------------------------------
+  // Trading names here are invented. Fabricated reviews are attached to these
+  // records, so they must not name a real dealership — mirrors the live shape
+  // (dealers + dealer_scores + dealer_ratings + salespeople) and nothing more.
+  var dealers = [
+    { id: 'demo-d1', name: 'Highveld Electric Motors', brand: 'BYD',   area: 'Midrand, Gauteng',
+      scores: { rating_count: 24, avg_service: 4.8, avg_price: 4.3, avg_honesty: 4.9, avg_overall: 4.7 } },
+    { id: 'demo-d2', name: 'Coastline EV Centre',      brand: 'GWM',   area: 'Umhlanga, KZN',
+      scores: { rating_count: 17, avg_service: 4.5, avg_price: 4.4, avg_honesty: 4.5, avg_overall: 4.5 } },
+    { id: 'demo-d3', name: 'Table Bay Auto Collective', brand: 'Volvo', area: 'Century City, Cape Town',
+      scores: { rating_count: 31, avg_service: 4.4, avg_price: 3.8, avg_honesty: 4.6, avg_overall: 4.3 } },
+    { id: 'demo-d4', name: 'Silverstone Motors',       brand: 'Multi-brand', area: 'Centurion, Gauteng',
+      scores: { rating_count: 12, avg_service: 3.6, avg_price: 4.2, avg_honesty: 3.4, avg_overall: 3.7 } },
+    { id: 'demo-d5', name: 'Kalahari Wheels',          brand: 'Chery', area: 'Bloemfontein, Free State',
+      scores: { rating_count: 6,  avg_service: 3.2, avg_price: 3.8, avg_honesty: 2.9, avg_overall: 3.3 } },
+    { id: 'demo-d6', name: 'Garden Route Auto',        brand: 'Kia',   area: 'George, Western Cape',
+      scores: { rating_count: 0,  avg_service: null, avg_price: null, avg_honesty: null, avg_overall: null } }
+  ];
+
+  var dealerRatings = {
+    'demo-d1': [
+      { id: 'demo-r1', service: 5, price: 4, honesty: 5, created_at: ago(2600), author: P.thabo,
+        review: 'Quoted me a delivery date and hit it to the day. Handover was 90 minutes and they had the wallbox installer booked before I left.' },
+      { id: 'demo-r2', service: 5, price: 5, honesty: 5, created_at: ago(5200), author: P.naledi,
+        review: 'No pressure on the extras at all. They talked me out of a service plan I did not need, which cost them money.' },
+      { id: 'demo-r3', service: 4, price: 4, honesty: 5, created_at: ago(9100), author: P.lerato,
+        review: 'Straight answers on real-world range instead of the brochure figure. Took a while to get through on the phone.' }
+    ],
+    'demo-d2': [
+      { id: 'demo-r4', service: 5, price: 4, honesty: 4, created_at: ago(3400), author: P.sipho,
+        review: 'Let me take the car overnight before deciding. That alone made the difference.' },
+      { id: 'demo-r5', service: 4, price: 5, honesty: 5, created_at: ago(7700), author: P.devon,
+        review: 'Beat two other quotes without me asking. Trade-in valuation was fair and they showed me the book.' }
+    ],
+    'demo-d3': [
+      { id: 'demo-r6', service: 5, price: 3, honesty: 5, created_at: ago(1900), author: P.naledi,
+        review: 'Premium pricing and they do not really move on it, but everything they told me turned out to be true.' },
+      { id: 'demo-r7', service: 4, price: 4, honesty: 4, created_at: ago(6400), author: P.thabo,
+        review: 'Service department is excellent. Sales floor was a bit slow on a Saturday.' }
+    ],
+    'demo-d4': [
+      { id: 'demo-r8', service: 3, price: 4, honesty: 3, created_at: ago(4100), author: P.lerato,
+        review: 'Advertised price did not include on-the-road costs and that only came up at signature. Car itself has been fine.' },
+      { id: 'demo-r9', service: 4, price: 4, honesty: 4, created_at: ago(8800), author: P.sipho,
+        review: 'Decent enough. Ask for everything in writing up front and you will have no problems.' }
+    ],
+    'demo-d5': [
+      { id: 'demo-r10', service: 3, price: 4, honesty: 3, created_at: ago(10200), author: P.devon,
+        review: 'Took three calls to get a firm delivery date. Price was competitive once we got there.' }
+    ],
+    'demo-d6': []
+  };
+
+  var salespeople = {
+    'demo-d1': [
+      { id: 'demo-s1', name: 'Refilwe Motaung', noms: [
+        { reason: 'Answered questions on a Sunday and never once pushed the finance product.', author: P.thabo },
+        { reason: 'Knew the actual charging curve, not just the spec sheet.', author: P.naledi } ] },
+      { id: 'demo-s2', name: 'Yusuf Adams', noms: [
+        { reason: 'Sorted a delayed registration in a day when it was not his problem to fix.', author: P.lerato } ] }
+    ],
+    'demo-d2': [
+      { id: 'demo-s3', name: 'Kayla Naidoo', noms: [
+        { reason: 'Arranged the overnight test drive and followed up once, not eleven times.', author: P.sipho } ] }
+    ],
+    'demo-d3': [
+      { id: 'demo-s4', name: 'Pieter van Wyk', noms: [
+        { reason: 'Told me to wait two months for the facelift rather than sell me the outgoing model.', author: P.naledi } ] }
+    ],
+    'demo-d4': [{ id: 'demo-s5', name: 'Brandon Nel', noms: [] }],
+    'demo-d5': [],
+    'demo-d6': []
+  };
+
   window.GARAGE_DEMO = {
     posts: posts,
     comments: comments,
     // Posts authored by people the signed-out demo user "follows".
-    followingIds: [P.thabo.id, P.naledi.id]
+    followingIds: [P.thabo.id, P.naledi.id],
+    dealers: dealers,
+    dealerRatings: dealerRatings,
+    salespeople: salespeople
   };
 })();
