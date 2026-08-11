@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: voltage-tco
+    env: node
+    buildCommand: npm install
+    startCommand: node dev-server.mjs
+    autoDeploy: true

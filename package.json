@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Voltage — EV vs ICE total cost-of-ownership comparison",
   "scripts": {
+    "start": "node dev-server.mjs",
     "dev:site": "node dev-server.mjs",
     "dev": "vite",
     "build": "tsc -b && vite build",
