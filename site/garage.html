@@ -268,7 +268,7 @@
 const { useState, useEffect, useRef, useCallback } = React;
 const DB = window.DB;
 const POST_SELECT = 'id, body, photos, comparison_id, like_count, comment_count, created_at,' +
-  ' author:profiles(id,handle,display_name,avatar_url,is_verified_owner),' +
+  ' author:profiles!posts_author_id_fkey(id,handle,display_name,avatar_url,is_verified_owner),' +
   ' comparison:comparisons(id,title,result)';
 const MAX_PHOTOS = 4;
 

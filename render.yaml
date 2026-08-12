@@ -2,6 +2,6 @@ services:
   - type: web
     name: voltage-tco
     env: node
-    buildCommand: npm install
+    buildCommand: npm install && echo "window.SUPABASE_URL='$SUPABASE_URL'; window.SUPABASE_ANON_KEY='$SUPABASE_ANON_KEY'; window.API_BASE='';" > site/config.local.js
     startCommand: node dev-server.mjs
     autoDeploy: true
