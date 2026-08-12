@@ -25,10 +25,40 @@ create table if not exists public.profiles (
   fuel_type          text check (fuel_type in ('ICE','EV','Hybrid','PHEV')),
   location           text,
   is_verified_owner  boolean not null default false,   -- verified EV owner (Ask an Owner)
-  monthly_km         int default 2000,
-  home_tariff        numeric(6,2) default 3.30,        -- R/kWh, personal preference
+                                                       -- NOT self-serve: update is revoked from
+                                                       -- anon/authenticated further down, so only
+                                                       -- service_role (dashboard) can grant it.
   created_at         timestamptz not null default now()
 );
+
+-- Personal preferences, kept OUT of the profile row. public.profiles is
+-- world-readable by design (it is a social site), and a member's typical
+-- monthly distance and home electricity tariff are usage/financial details no
+-- other visitor needs. Owner-only RLS below.
+create table if not exists public.profile_prefs (
+  profile_id   uuid primary key references public.profiles(id) on delete cascade,
+  monthly_km   int default 2000,
+  home_tariff  numeric(6,2) default 3.30,              -- R/kWh
+  updated_at   timestamptz not null default now()
+);
+
+-- Carry values over from the previous layout, then drop them. A no-op on a
+-- fresh database; preserves data if an earlier version of this schema was run.
+-- Dynamic SQL deliberately: the old columns do not exist on a fresh database,
+-- and EXECUTE defers resolving them until the branch actually runs.
+do $$ begin
+  if exists (select 1 from information_schema.columns
+             where table_schema = 'public' and table_name = 'profiles'
+               and column_name = 'monthly_km') then
+    execute $mig$
+      insert into public.profile_prefs (profile_id, monthly_km, home_tariff)
+      select id, monthly_km, home_tariff from public.profiles
+      on conflict (profile_id) do nothing
+    $mig$;
+    execute 'alter table public.profiles drop column monthly_km';
+    execute 'alter table public.profiles drop column home_tariff';
+  end if;
+end $$;
 
 -- ---------------------------------------------------------------------------
 -- 2. SOCIAL GRAPH
@@ -116,8 +146,13 @@ create table if not exists public.salespeople (
   id          uuid primary key default gen_random_uuid(),
   dealer_id   uuid not null references public.dealers(id) on delete cascade,
   name        text not null,
+  created_by  uuid references public.profiles(id) on delete set null,
   created_at  timestamptz not null default now()
 );
+-- Added after the fact: without an owner column there is no way to attribute or
+-- remove a bogus entry, and the insert policy had nothing to check against.
+alter table public.salespeople
+  add column if not exists created_by uuid references public.profiles(id) on delete set null;
 
 create table if not exists public.salesperson_nominations (
   id              uuid primary key default gen_random_uuid(),
@@ -242,6 +277,10 @@ begin
     new.raw_user_meta_data->>'avatar_url'
   );
 
+  insert into public.profile_prefs (profile_id)
+  values (new.id)
+  on conflict (profile_id) do nothing;
+
   insert into public.profile_badges (profile_id, badge_slug)
   values (new.id, 'founding-member')
   on conflict do nothing;
@@ -256,8 +295,13 @@ create trigger on_auth_user_created
   for each row execute function public.handle_new_user();
 
 -- Keep posts.like_count in sync.
+-- security definer is load-bearing, not boilerplate: as security invoker this
+-- UPDATE runs as the *liking* user and is filtered by posts_update_own
+-- (auth.uid() = author_id), so liking anyone else's post matched zero rows and
+-- the counter silently never moved. Running as the table owner bypasses RLS,
+-- and is also what lets like_count be revoked from clients below.
 create or replace function public.bump_post_like_count()
-returns trigger language plpgsql as $$
+returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if tg_op = 'INSERT' then
     update public.posts set like_count = like_count + 1 where id = new.post_id;
@@ -271,9 +315,9 @@ create trigger trg_post_like_count
   after insert or delete on public.post_likes
   for each row execute function public.bump_post_like_count();
 
--- Keep posts.comment_count in sync.
+-- Keep posts.comment_count in sync. security definer for the same reason.
 create or replace function public.bump_post_comment_count()
-returns trigger language plpgsql as $$
+returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if tg_op = 'INSERT' then
     update public.posts set comment_count = comment_count + 1 where id = new.post_id;
@@ -287,9 +331,9 @@ create trigger trg_post_comment_count
   after insert or delete on public.comments
   for each row execute function public.bump_post_comment_count();
 
--- Keep ask_threads.reply_count in sync.
+-- Keep ask_threads.reply_count in sync. security definer for the same reason.
 create or replace function public.bump_thread_reply_count()
-returns trigger language plpgsql as $$
+returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if tg_op = 'INSERT' then
     update public.ask_threads set reply_count = reply_count + 1 where id = new.thread_id;
@@ -302,6 +346,22 @@ drop trigger if exists trg_thread_reply_count on public.ask_replies;
 create trigger trg_thread_reply_count
   after insert or delete on public.ask_replies
   for each row execute function public.bump_thread_reply_count();
+
+-- Stamp ask_replies.from_verified_owner from the author's actual profile.
+-- The insert policy only checks author_id, so the client was free to send
+-- from_verified_owner = true on its own reply and borrow the credibility of a
+-- verified owner. Whatever the client sends is overwritten here.
+create or replace function public.stamp_reply_verified()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  new.from_verified_owner := coalesce(
+    (select is_verified_owner from public.profiles where id = new.author_id), false);
+  return new;
+end $$;
+drop trigger if exists trg_stamp_reply_verified on public.ask_replies;
+create trigger trg_stamp_reply_verified
+  before insert or update on public.ask_replies
+  for each row execute function public.stamp_reply_verified();
 
 -- Mirror profiles.is_verified_owner onto the verified-owner badge.
 create or replace function public.sync_verified_badge()
@@ -327,6 +387,7 @@ create trigger trg_sync_verified_badge
 -- the authenticated owner of each row. Private tables (bookings) are owner-only.
 -- ============================================================================
 alter table public.profiles                enable row level security;
+alter table public.profile_prefs           enable row level security;
 alter table public.follows                 enable row level security;
 alter table public.comparisons             enable row level security;
 alter table public.posts                   enable row level security;
@@ -350,6 +411,14 @@ do $$ begin
   drop policy if exists profiles_update_own on public.profiles;
   create policy profiles_update_own on public.profiles for update using (auth.uid() = id) with check (auth.uid() = id);
 
+  -- PROFILE PREFS (private to the owner) -----------------------------------
+  drop policy if exists profile_prefs_read_own on public.profile_prefs;
+  create policy profile_prefs_read_own on public.profile_prefs for select using (auth.uid() = profile_id);
+  drop policy if exists profile_prefs_insert_own on public.profile_prefs;
+  create policy profile_prefs_insert_own on public.profile_prefs for insert with check (auth.uid() = profile_id);
+  drop policy if exists profile_prefs_update_own on public.profile_prefs;
+  create policy profile_prefs_update_own on public.profile_prefs for update using (auth.uid() = profile_id) with check (auth.uid() = profile_id);
+
   -- FOLLOWS ----------------------------------------------------------------
   drop policy if exists follows_read on public.follows;
   create policy follows_read on public.follows for select using (true);
@@ -364,7 +433,10 @@ do $$ begin
   drop policy if exists comparisons_insert_own on public.comparisons;
   create policy comparisons_insert_own on public.comparisons for insert with check (auth.uid() = owner_id);
   drop policy if exists comparisons_update_own on public.comparisons;
-  create policy comparisons_update_own on public.comparisons for update using (auth.uid() = owner_id);
+  -- with check matters as much as using: `using` decides which rows may be
+  -- updated, `with check` validates the row that results. Without it the owner
+  -- column can be rewritten to another user, handing the row away.
+  create policy comparisons_update_own on public.comparisons for update using (auth.uid() = owner_id) with check (auth.uid() = owner_id);
   drop policy if exists comparisons_delete_own on public.comparisons;
   create policy comparisons_delete_own on public.comparisons for delete using (auth.uid() = owner_id);
 
@@ -374,7 +446,7 @@ do $$ begin
   drop policy if exists posts_insert_own on public.posts;
   create policy posts_insert_own on public.posts for insert with check (auth.uid() = author_id);
   drop policy if exists posts_update_own on public.posts;
-  create policy posts_update_own on public.posts for update using (auth.uid() = author_id);
+  create policy posts_update_own on public.posts for update using (auth.uid() = author_id) with check (auth.uid() = author_id);
   drop policy if exists posts_delete_own on public.posts;
   create policy posts_delete_own on public.posts for delete using (auth.uid() = author_id);
 
@@ -400,7 +472,7 @@ do $$ begin
   drop policy if exists dealers_insert_auth on public.dealers;
   create policy dealers_insert_auth on public.dealers for insert with check (auth.uid() = created_by);
   drop policy if exists dealers_update_own on public.dealers;
-  create policy dealers_update_own on public.dealers for update using (auth.uid() = created_by);
+  create policy dealers_update_own on public.dealers for update using (auth.uid() = created_by) with check (auth.uid() = created_by);
 
   -- DEALER RATINGS ---------------------------------------------------------
   drop policy if exists ratings_read on public.dealer_ratings;
@@ -408,7 +480,7 @@ do $$ begin
   drop policy if exists ratings_insert_own on public.dealer_ratings;
   create policy ratings_insert_own on public.dealer_ratings for insert with check (auth.uid() = user_id);
   drop policy if exists ratings_update_own on public.dealer_ratings;
-  create policy ratings_update_own on public.dealer_ratings for update using (auth.uid() = user_id);
+  create policy ratings_update_own on public.dealer_ratings for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
   drop policy if exists ratings_delete_own on public.dealer_ratings;
   create policy ratings_delete_own on public.dealer_ratings for delete using (auth.uid() = user_id);
 
@@ -416,7 +488,9 @@ do $$ begin
   drop policy if exists salespeople_read on public.salespeople;
   create policy salespeople_read on public.salespeople for select using (true);
   drop policy if exists salespeople_insert_auth on public.salespeople;
-  create policy salespeople_insert_auth on public.salespeople for insert to authenticated with check (true);
+  create policy salespeople_insert_auth on public.salespeople for insert to authenticated with check (auth.uid() = created_by);
+  drop policy if exists salespeople_delete_own on public.salespeople;
+  create policy salespeople_delete_own on public.salespeople for delete using (auth.uid() = created_by);
 
   -- SALESPERSON NOMINATIONS ------------------------------------------------
   drop policy if exists noms_read on public.salesperson_nominations;
@@ -448,7 +522,9 @@ do $$ begin
   drop policy if exists bookings_insert_own on public.bookings;
   create policy bookings_insert_own on public.bookings for insert with check (auth.uid() = user_id);
   drop policy if exists bookings_update_own on public.bookings;
-  create policy bookings_update_own on public.bookings for update using (auth.uid() = user_id);
+  create policy bookings_update_own on public.bookings for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+  drop policy if exists bookings_delete_own on public.bookings;
+  create policy bookings_delete_own on public.bookings for delete using (auth.uid() = user_id);
 
   -- BADGES -----------------------------------------------------------------
   drop policy if exists badges_read on public.badges;
@@ -456,6 +532,38 @@ do $$ begin
   drop policy if exists profile_badges_read on public.profile_badges;
   create policy profile_badges_read on public.profile_badges for select using (true);
 end $$;
+
+-- ============================================================================
+-- COLUMN PRIVILEGES
+-- ----------------------------------------------------------------------------
+-- RLS decides which ROWS you may touch; it cannot say which COLUMNS. Three
+-- columns are trust-bearing or trigger-maintained and must not be client
+-- writable even on your own row:
+--   profiles.is_verified_owner  — the "Verified EV Owner" badge. Self-serve
+--                                 verification makes the badge worthless, and
+--                                 trg_sync_verified_badge awards it on write.
+--   posts.like_count / comment_count, ask_threads.reply_count
+--                               — maintained by the bump_* triggers above.
+--
+-- Note on mechanics: REVOKE UPDATE (col) does NOT override a table-level
+-- UPDATE grant, and Supabase grants ALL on public tables to anon/authenticated
+-- by default. So the table-level privilege is withdrawn and only the safe
+-- columns are granted back. The bump_* triggers are unaffected — they are
+-- security definer and run as the owner.
+-- ============================================================================
+revoke update on public.profiles     from anon, authenticated;
+revoke update on public.posts        from anon, authenticated;
+revoke update on public.ask_threads  from anon, authenticated;
+
+grant update (handle, display_name, avatar_url, bio,
+              car_make, car_model, car_year, fuel_type, location)
+  on public.profiles to authenticated;
+
+grant update (body, photos, comparison_id)
+  on public.posts to authenticated;
+
+grant update (title, body, topic)
+  on public.ask_threads to authenticated;
 
 -- ============================================================================
 -- STORAGE  (public buckets for avatars and post photos)
@@ -510,3 +618,7 @@ end $$;
 
 -- Done. Next: Authentication → Google provider (Dashboard → Authentication →
 -- Providers) and paste your project URL + anon key into site/config.local.js.
+--
+-- To verify an EV owner (it is not self-serve — see COLUMN PRIVILEGES above),
+-- run this from the SQL editor, which executes as the table owner:
+--   update public.profiles set is_verified_owner = true where handle = 'their_handle';

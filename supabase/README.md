@@ -100,3 +100,30 @@ and you should land on your auto-created profile.
 Reads are public (it's a social site); every write is checked against
 `auth.uid()` by RLS, so the browser can talk to the database directly and still
 can't forge posts, ratings or edits as someone else.
+
+### What RLS alone does *not* cover
+
+Row-level security says which **rows** you may touch, never which **columns**.
+Three things are therefore locked down with column privileges instead, because
+they are trust-bearing or trigger-maintained:
+
+| Column | Why it's not client-writable |
+|---|---|
+| `profiles.is_verified_owner` | A self-assignable "Verified EV Owner" badge means nothing to buyers. Granting it is a `service_role` action. |
+| `posts.like_count`, `posts.comment_count` | Maintained by triggers; otherwise a member could set their own like count. |
+| `ask_threads.reply_count` | Same. |
+
+Note that `REVOKE UPDATE (column)` does **not** override a table-level `UPDATE`
+grant, and Supabase grants `ALL` on public tables to `anon`/`authenticated` by
+default — so `schema.sql` withdraws the table-level privilege and grants back
+only the safe columns.
+
+**To verify an EV owner**, from the SQL editor (it runs as the table owner):
+
+```sql
+update public.profiles set is_verified_owner = true where handle = 'their_handle';
+```
+
+Personal switch preferences (`monthly_km`, `home_tariff`) live in
+`profile_prefs`, which is owner-only — `profiles` is world-readable and those
+are nobody else's business.

@@ -593,7 +593,8 @@ function Dealer({ d, rank, open, onOpen, me, flash, onRated, onAddedSp }) {
     if (!spName.trim()) return;
     if (!guard()) return;
     try {
-      const { error } = await DB.sb.from('salespeople').insert({ dealer_id: d.id, name: spName.trim() });
+      // created_by is required by salespeople_insert_auth (auth.uid() = created_by).
+      const { error } = await DB.sb.from('salespeople').insert({ dealer_id: d.id, name: spName.trim(), created_by: me.id });
       if (error) throw error;
       setSpName(''); flash('Sales executive added'); onAddedSp(d.id);
     } catch (ex) { flash('Could not add: ' + ((ex && ex.message) || ex)); }

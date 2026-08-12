@@ -202,6 +202,9 @@ function App() {
   const [following, setFollowing] = useState(false);
   const [busyFollow, setBusyFollow] = useState(false);
   const [email, setEmail] = useState('');
+  // Switch preferences live in profile_prefs, not on the profile row: profiles
+  // is world-readable and these are personal usage/tariff details.
+  const [prefs, setPrefs] = useState({ monthly_km: '', home_tariff: '' });
   const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'dark');
   const [toast, setToast] = useState('');
   const fileRef = useRef(null);
@@ -224,6 +227,15 @@ function App() {
         setIsMe(mine);
         setP(profile); setOrig(profile);
         if (me) setEmail(me.email || '');
+
+        // Own preferences only — RLS returns nothing for anyone else's row.
+        if (mine) {
+          const pr = await DB.sb.from('profile_prefs').select('monthly_km, home_tariff').eq('profile_id', profile.id).maybeSingle();
+          if (pr.data) setPrefs({
+            monthly_km: pr.data.monthly_km == null ? '' : pr.data.monthly_km,
+            home_tariff: pr.data.home_tariff == null ? '' : pr.data.home_tariff,
+          });
+        }
 
         // counts
         const [followers, followingC, postsC] = await Promise.all([
@@ -261,9 +273,13 @@ function App() {
   }, []);
 
   const up = (k) => (v) => setP({ ...p, [k]: v });
+  const upPref = (k) => (v) => setPrefs({ ...prefs, [k]: v });
 
   const save = async () => {
     try {
+      // is_verified_owner is deliberately absent: UPDATE on that column is
+      // revoked from authenticated, so verification is a service_role action.
+      // Sending it here would fail the whole patch.
       const patch = {
         display_name: (p.display_name || '').trim() || 'New member',
         bio: p.bio || '',
@@ -272,12 +288,18 @@ function App() {
         car_year: p.car_year ? parseInt(p.car_year, 10) : null,
         fuel_type: p.fuel_type || null,
         location: p.location || null,
-        monthly_km: p.monthly_km ? parseInt(p.monthly_km, 10) : null,
-        home_tariff: p.home_tariff ? parseFloat(p.home_tariff) : null,
-        is_verified_owner: !!p.is_verified_owner,
       };
       const { data, error } = await DB.sb.from('profiles').update(patch).eq('id', p.id).select().single();
       if (error) throw error;
+
+      const { error: prefErr } = await DB.sb.from('profile_prefs').upsert({
+        profile_id: p.id,
+        monthly_km: prefs.monthly_km === '' || prefs.monthly_km == null ? null : parseInt(prefs.monthly_km, 10),
+        home_tariff: prefs.home_tariff === '' || prefs.home_tariff == null ? null : parseFloat(prefs.home_tariff),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'profile_id' });
+      if (prefErr) throw prefErr;
+
       DB.clearProfileCache();
       setP(data); setOrig(data); setEdit(false);
       flash('Profile saved');
@@ -421,12 +443,20 @@ function App() {
           {isMe && (
             <div className="pcard">
               <div className="ch"><h3>Switch preferences</h3></div>
-              <Field label="Typical monthly distance" value={p.monthly_km} onChange={up('monthly_km')} ro={!editable} suf="km" type="number" />
-              <Field label="Home electricity tariff" value={p.home_tariff} onChange={up('home_tariff')} ro={!editable} pre="R" suf="/kWh" type="number" />
+              <Field label="Typical monthly distance" value={prefs.monthly_km} onChange={upPref('monthly_km')} ro={!editable} suf="km" type="number" />
+              <Field label="Home electricity tariff" value={prefs.home_tariff} onChange={upPref('home_tariff')} ro={!editable} pre="R" suf="/kWh" type="number" />
               <div className="toggle-row" style={{borderTop:'1px solid var(--line-2)'}}>
-                <div><div className="k">EV owner</div><div className="sub">Unlocks the “Verified owner” badge so buyers can find you in Ask an Owner.</div></div>
-                <div className={'sw' + (p.is_verified_owner ? ' on' : '')} onClick={()=>editable && up('is_verified_owner')(!p.is_verified_owner)}
-                     style={{opacity: editable ? 1 : .5, pointerEvents: editable ? 'auto' : 'none'}}><i/></div>
+                <div>
+                  <div className="k">EV owner</div>
+                  <div className="sub">
+                    {p.is_verified_owner
+                      ? 'Verified — your answers in Ask an Owner carry the owner badge.'
+                      : 'Verification is granted after review, so the badge means something to buyers. Get in touch to be verified.'}
+                  </div>
+                </div>
+                <div className={'sw' + (p.is_verified_owner ? ' on' : '')}
+                     style={{opacity: .5, pointerEvents: 'none'}} aria-disabled="true"
+                     title="Verification is granted after review"><i/></div>
               </div>
               <div className="toggle-row" style={{borderTop:'1px solid var(--line-2)'}}>
                 <div><div className="k">Appearance</div><div className="sub">Used across the app.</div></div>
