@@ -151,8 +151,8 @@
   }
 
   // Resolve a storage path OR full URL to a public URL.
-  // `data:` URIs pass straight through so demo/placeholder art renders with no
-  // storage round-trip (see demo-data.js).
+  // `data:` URIs pass straight through so inline/placeholder art renders with
+  // no storage round-trip.
   function publicUrl(bucket, path) {
     if (!path) return null;
     if (/^(https?:\/\/|data:)/.test(path)) return path;

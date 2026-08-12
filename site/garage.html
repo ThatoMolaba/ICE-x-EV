@@ -207,18 +207,6 @@
     border:1px solid var(--line-2);border-radius:6px;padding:2px 6px;}
   .state ol{text-align:left;max-width:460px;margin:18px auto 0;padding-left:20px;font-size:14px;line-height:1.7;}
 
-  /* demo-mode banner */
-  .demo-bar{background:color-mix(in srgb,var(--warn,#d9a441) 9%,var(--surface));
-    border:1px solid color-mix(in srgb,var(--warn,#d9a441) 34%,var(--line-2));
-    border-radius:14px;padding:13px 15px;margin-bottom:18px;display:flex;gap:11px;align-items:flex-start;}
-  .demo-bar svg{width:17px;height:17px;flex:0 0 auto;margin-top:1px;color:var(--warn,#d9a441);}
-  .demo-bar .tx{flex:1;min-width:0;}
-  .demo-bar .t{font-size:13.5px;font-weight:600;color:var(--fg);}
-  .demo-bar .s{font-size:12.5px;color:var(--fg-2);margin-top:3px;line-height:1.5;}
-  .demo-bar .x{border:none;background:transparent;color:var(--fg-3);cursor:pointer;padding:2px;line-height:0;}
-  .demo-bar .x:hover{color:var(--fg);}
-  .demo-bar .x svg{width:13px;height:13px;color:inherit;}
-  .post.is-demo .act{cursor:default;}
   .skeleton{height:150px;border-radius:18px;background:linear-gradient(100deg,var(--surface),var(--bg-2),var(--surface));
     background-size:200% 100%;animation:sh 1.4s infinite;margin-bottom:16px;}
   @keyframes sh{to{background-position:-200% 0;}}
@@ -261,7 +249,6 @@
 <script src="config.local.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase.js"></script>
-<script src="demo-data.js"></script>
 <script src="site.js"></script>
 <script src="nav-auth.js"></script>
 <script type="text/babel">
@@ -421,16 +408,12 @@ function Photos({ paths }) {
   );
 }
 
-function Comments({ post, me, flash, demo }) {
+function Comments({ post, me, flash }) {
   const [list, setList] = useState(null);
   const [val, setVal] = useState('');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (demo) {
-      setList(((window.GARAGE_DEMO && window.GARAGE_DEMO.comments) || {})[post.id] || []);
-      return;
-    }
     let chan;
     DB.sb.from('comments')
       .select('id, body, created_at, author:profiles(id,handle,display_name,avatar_url)')
@@ -448,10 +431,9 @@ function Comments({ post, me, flash, demo }) {
         setList(prev => prev ? prev.map(x => x.id === c.id ? { ...x, author: a.data } : x) : prev);
       }).subscribe();
     return () => { if (chan) DB.sb.removeChannel(chan); };
-  }, [post.id, demo]);
+  }, [post.id]);
 
   const send = async () => {
-    if (demo) { flash('Demo mode — connect Supabase to comment'); return; }
     if (!me) { location.href = 'auth.html?next=' + encodeURIComponent(location.pathname); return; }
     const text = val.trim();
     if (!text || busy) return;
@@ -472,10 +454,10 @@ function Comments({ post, me, flash, demo }) {
       <div className="cbox">
         <Avatar profile={me && me.profile} cls="sm" />
         <div className="inp">
-          <input value={val} disabled={!me || demo}
-            placeholder={demo ? 'Demo mode — comments are read-only' : me ? 'Write a comment…' : 'Sign in to comment'}
+          <input value={val} disabled={!me}
+            placeholder={me ? 'Write a comment…' : 'Sign in to comment'}
             onChange={(e)=>setVal(e.target.value)} onKeyDown={(e)=>{ if(e.key==='Enter') send(); }} />
-          <button onClick={send} disabled={!val.trim() || demo}><Ico.Send/></button>
+          <button onClick={send} disabled={!val.trim()}><Ico.Send/></button>
         </div>
       </div>
       {list == null ? <div className="cempty">Loading…</div>
@@ -493,12 +475,10 @@ function Comments({ post, me, flash, demo }) {
   );
 }
 
-function Post({ post, me, liked, onToggleLike, flash, highlight, demo }) {
+function Post({ post, me, liked, onToggleLike, flash, highlight }) {
   const [open, setOpen] = useState(false);
   const a = post.author || {};
-  // In demo mode the profile pages have no backend to read either, so the
-  // author links go nowhere rather than to a dead end.
-  const href = demo ? null : ('profile.html?u=' + a.handle);
+  const href = 'profile.html?u=' + a.handle;
   const share = async () => {
     const url = location.origin + location.pathname + '?post=' + post.id;
     const text = (post.body || 'Check this out on The Garage').slice(0, 120);
@@ -508,12 +488,12 @@ function Post({ post, me, liked, onToggleLike, flash, highlight, demo }) {
     } catch (e) { /* user cancelled */ }
   };
   return (
-    <div className={'post' + (highlight ? ' flash' : '') + (demo ? ' is-demo' : '')} id={'post-' + post.id}>
+    <div className={'post' + (highlight ? ' flash' : '')} id={'post-' + post.id}>
       <div className="head">
-        {href ? <a href={href}><Avatar profile={a} /></a> : <Avatar profile={a} />}
+        <a href={href}><Avatar profile={a} /></a>
         <div className="meta">
           <div className="nm">
-            {href ? <a href={href}>{a.display_name || 'Member'}</a> : <span>{a.display_name || 'Member'}</span>}
+            <a href={href}>{a.display_name || 'Member'}</a>
             {a.is_verified_owner && <span className="vf" title="Verified EV owner"><Ico.Verified/></span>}
           </div>
           <div className="sub">@{a.handle} · {DB.timeAgo(post.created_at)}</div>
@@ -540,42 +520,12 @@ function Post({ post, me, liked, onToggleLike, flash, highlight, demo }) {
         <button className="act" onClick={share}><Ico.Share/>Share</button>
       </div>
 
-      {open && <Comments post={post} me={me} flash={flash} demo={demo} />}
+      {open && <Comments post={post} me={me} flash={flash} />}
     </div>
   );
 }
 
-// `reason` distinguishes the two ways we end up on sample data. Telling a
-// visitor the project "isn't responding" when no project was ever configured
-// sends them hunting for an outage that doesn't exist.
-function DemoBar({ reason, onClose }) {
-  let host = '';
-  try { host = new URL(window.SUPABASE_URL || '').host; } catch (e) { host = 'your Supabase project'; }
-  return (
-    <div className="demo-bar">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4.5M12 17h.01"/>
-      </svg>
-      <div className="tx">
-        <div className="t">Demo mode — this is sample data</div>
-        <div className="s">
-          {reason === 'unconfigured'
-            ? <>No Supabase backend is configured on this deployment, so the posts and dealerships
-               below are local sample data and nothing can be saved. <b>config.local.js</b> holds the
-               keys and is deliberately never committed — copy <b>site/config.example.js</b> to it and
-               run <b>supabase/schema.sql</b> to see live data. See <b>supabase/README.md</b>.</>
-            : <><b>{host}</b> isn’t responding, so the posts and dealerships below are local
-               sample data and nothing can be saved. A free Supabase project is paused after about a week idle, which removes its
-               subdomain — resume it in the dashboard, or point <b>config.local.js</b> at a new project
-               and re-run <b>supabase/schema.sql</b>.</>}
-        </div>
-      </div>
-      <button className="x" onClick={onClose} aria-label="Dismiss"><Ico.X/></button>
-    </div>
-  );
-}
-
-function Dealer({ d, rank, open, onOpen, me, demo, flash, onRated, onAddedSp }) {
+function Dealer({ d, rank, open, onOpen, me, flash, onRated, onAddedSp }) {
   const [detail, setDetail] = useState(null);   // { reviews, sps }
   const [rating, setRating] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -590,14 +540,6 @@ function Dealer({ d, rank, open, onOpen, me, demo, flash, onRated, onAddedSp }) 
   useEffect(() => {
     if (!open) return;
     let alive = true;
-    if (demo) {
-      const D = window.GARAGE_DEMO || {};
-      setDetail({
-        reviews: (D.dealerRatings || {})[d.id] || [],
-        sps: (D.salespeople || {})[d.id] || [],
-      });
-      return;
-    }
     (async () => {
       const [r, sp] = await Promise.all([
         DB.sb.from('dealer_ratings')
@@ -623,18 +565,11 @@ function Dealer({ d, rank, open, onOpen, me, demo, flash, onRated, onAddedSp }) 
       });
     })();
     return () => { alive = false; };
-  }, [open, d.id, demo]);
+  }, [open, d.id]);
 
-  // Opening a form and submitting it need different gates. In demo mode the
-  // form must still open — otherwise the rating UI is unreachable and cannot be
-  // reviewed at all — but the write is refused.
-  const canOpen = () => {
-    if (demo) return true;
-    if (!me) { location.href = 'auth.html?next=' + encodeURIComponent('garage.html'); return false; }
-    return true;
-  };
+  // Rating, adding an executive and shouting one out all require a session;
+  // send a signed-out visitor to sign-in and bring them back here.
   const guard = () => {
-    if (demo) { flash('Demo mode — connect Supabase to save this'); return false; }
     if (!me) { location.href = 'auth.html?next=' + encodeURIComponent('garage.html'); return false; }
     return true;
   };
@@ -712,7 +647,7 @@ function Dealer({ d, rank, open, onOpen, me, demo, flash, onRated, onAddedSp }) 
           <div className="d-sec">
             <h4>
               <span>Reviews{detail ? ' · ' + detail.reviews.length : ''}</span>
-              {!rating && <button onClick={() => canOpen() && setRating(true)}>{mine ? 'Edit your rating' : 'Rate this dealer'}</button>}
+              {!rating && <button onClick={() => guard() && setRating(true)}>{mine ? 'Edit your rating' : 'Rate this dealer'}</button>}
             </h4>
             {rating
               ? <RateForm mine={mine} busy={busy} onSave={saveRating} onCancel={() => setRating(false)} />
@@ -746,7 +681,7 @@ function Dealer({ d, rank, open, onOpen, me, demo, flash, onRated, onAddedSp }) 
                     {sp.name}
                     {sp.noms.length > 0 && <span className="cnt">{sp.noms.length} shout-out{sp.noms.length === 1 ? '' : 's'}</span>}
                     <button style={{border:'none',background:'none',color:'var(--accent)',font:'inherit',fontSize:'12px',cursor:'pointer',padding:0}}
-                      onClick={() => { if (nomFor !== sp.id && !canOpen()) return; setNomFor(nomFor === sp.id ? null : sp.id); setNomText(''); }}>
+                      onClick={() => { if (nomFor !== sp.id && !guard()) return; setNomFor(nomFor === sp.id ? null : sp.id); setNomText(''); }}>
                       {nomFor === sp.id ? 'Cancel' : 'Give a shout-out'}
                     </button>
                   </div>
@@ -781,7 +716,7 @@ function Dealer({ d, rank, open, onOpen, me, demo, flash, onRated, onAddedSp }) 
   );
 }
 
-function Dealers({ me, demo, flash }) {
+function Dealers({ me, flash }) {
   const [rows, setRows] = useState(null);
   const [err, setErr] = useState(null);
   const [openId, setOpenId] = useState(null);
@@ -792,7 +727,6 @@ function Dealers({ me, demo, flash }) {
 
   useEffect(() => {
     let alive = true;
-    if (demo) { setRows((window.GARAGE_DEMO && window.GARAGE_DEMO.dealers) || []); return; }
     (async () => {
       try {
         // dealer_scores is a view keyed by dealer_id; PostgREST can't reliably
@@ -808,14 +742,14 @@ function Dealers({ me, demo, flash }) {
         setRows((d.data || []).map(x => ({ ...x, scores: byId[x.id] || null })));
       } catch (ex) {
         if (!alive) return;
-        setErr(DB.isNetworkError(ex) ? 'Backend unreachable.' : ((ex && ex.message) || String(ex)));
+        console.error('[garage] dealerships load failed:', ex);
+        setErr(true);
       }
     })();
     return () => { alive = false; };
-  }, [demo, tick]);
+  }, [tick]);
 
   const addDealer = async () => {
-    if (demo) { flash('Demo mode — connect Supabase to add a dealership'); return; }
     if (!me) { location.href = 'auth.html?next=' + encodeURIComponent('garage.html'); return; }
     if (!nu.name.trim()) return;
     try {
@@ -827,7 +761,7 @@ function Dealers({ me, demo, flash }) {
     } catch (ex) { flash('Could not add: ' + ((ex && ex.message) || ex)); }
   };
 
-  if (err) return <div className="state" style={{margin:'60px auto'}}><h2>Couldn’t load dealerships</h2><p>{err}</p></div>;
+  if (err) return <div className="state" style={{margin:'60px auto'}}><h2>Couldn’t load dealerships</h2><p>Something went wrong on our side — please try again shortly.</p></div>;
   if (!rows) return <><div className="skeleton"/><div className="skeleton"/></>;
 
   // Ranked by overall score, then by how many people backed it. Unrated
@@ -872,7 +806,7 @@ function Dealers({ me, demo, flash }) {
           </div>
         : shown.map((d, i) => (
             <Dealer key={d.id} d={d} rank={i + 1} open={openId === d.id}
-              onOpen={setOpenId} me={me} demo={demo} flash={flash}
+              onOpen={setOpenId} me={me} flash={flash}
               onRated={() => setTick(t => t + 1)} onAddedSp={() => setTick(t => t + 1)} />
           ))}
     </div>
@@ -880,8 +814,7 @@ function Dealers({ me, demo, flash }) {
 }
 
 function App() {
-  const [state, setState] = useState('loading');   // loading | notconfig | ready | error
-  const [errMsg, setErrMsg] = useState('');
+  const [state, setState] = useState('loading');   // loading | notconfig | unreachable | ready | error
   const [me, setMe] = useState(null);              // { id, email, profile }
   const [posts, setPosts] = useState([]);
   const [liked, setLiked] = useState(new Set());
@@ -891,22 +824,10 @@ function App() {
   const [live, setLive] = useState(false);
   const [toast, setToast] = useState('');
   const [highlight, setHighlight] = useState(null);
-  const [demo, setDemo] = useState(false);         // no usable backend → sample data
-  const [demoReason, setDemoReason] = useState('unreachable'); // unconfigured | unreachable
-  const [showBar, setShowBar] = useState(true);
   const knownIds = useRef(new Set());
   const flash = (m) => { setToast(m); clearTimeout(flash._t); flash._t = setTimeout(()=>setToast(''), 2400); };
 
-  const loadFeed = useCallback(async (uid, follows, mode, isDemo) => {
-    if (isDemo) {
-      const D = window.GARAGE_DEMO || { posts: [], followingIds: [] };
-      const src = mode === 'following'
-        ? (D.posts || []).filter(p => (D.followingIds || []).indexOf(p.author && p.author.id) !== -1)
-        : (D.posts || []);
-      knownIds.current = new Set(src.map(p => p.id));
-      setPosts(src);
-      return;
-    }
+  const loadFeed = useCallback(async (uid, follows, mode) => {
     let q = DB.sb.from('posts').select(POST_SELECT).order('created_at', { ascending: false }).limit(40);
     if (mode === 'following') {
       const ids = Array.from(follows);
@@ -924,37 +845,26 @@ function App() {
     }
   }, []);
 
-  const startDemo = useCallback(async (reason) => {
-    setDemo(true);
-    setDemoReason(reason || 'unreachable');
-    setMe(null);
-    setLive(false);
-    setFilter('all');
-    setFollowingIds(new Set((window.GARAGE_DEMO && window.GARAGE_DEMO.followingIds) || []));
-    await loadFeed(null, null, 'all', true);
-    setState('ready');
-  }, [loadFeed]);
-
   useEffect(() => {
     let chan = null;
     (async () => {
-      // No keys at all. config.local.js is git-ignored, so a deployed build has
-      // no config file to load and lands here every time — the hard notice made
-      // the whole community layer unreachable in the one place most people see
-      // it. Sample data is the better default; the notice is kept only for the
-      // case where there is nothing at all to render.
       if (!DB || !DB.configured) {
-        if (window.GARAGE_DEMO) await startDemo('unconfigured');
-        else setState('notconfig');
+        console.error('[garage] Supabase is not configured — SUPABASE_URL / SUPABASE_ANON_KEY ' +
+          'are missing or empty. On Render these are injected into site/config.local.js at build ' +
+          'time from the service environment; locally, copy site/config.example.js.');
+        setState('notconfig');
         return;
       }
 
       // A configured-but-dead project (paused/deleted → no DNS) would otherwise
-      // surface as a bare "TypeError: Failed to fetch". Probe first, then fall
-      // back to sample data so the community UI is still reviewable.
+      // surface as a bare "TypeError: Failed to fetch". Probe first so the
+      // failure is diagnosed once rather than per query.
       if ((await DB.probe()) !== 'ok') {
-        if (window.GARAGE_DEMO) await startDemo('unreachable');
-        else setState('unreachable');
+        let host = '';
+        try { host = new URL(window.SUPABASE_URL || '').host; } catch (e) {}
+        console.error('[garage] Supabase did not respond' + (host ? ' at ' + host : '') +
+          '. A free project is paused after about a week idle, which takes its subdomain offline.');
+        setState('unreachable');
         return;
       }
 
@@ -991,15 +901,14 @@ function App() {
           .subscribe((status) => setLive(status === 'SUBSCRIBED'));
       } catch (ex) {
         // The project can go away between the probe and the query.
-        if (DB.isNetworkError(ex) && window.GARAGE_DEMO) { await startDemo('unreachable'); return; }
-        setErrMsg((ex && ex.message) || String(ex));
+        console.error('[garage] feed load failed:', ex);
         setState(DB.isNetworkError(ex) ? 'unreachable' : 'error');
       }
     })();
     // Returned from the effect (not the async IIFE, where it was discarded) so
     // the realtime channel is actually torn down on unmount.
     return () => { if (chan) DB.sb.removeChannel(chan); };
-  }, [startDemo, loadFeed]);
+  }, [loadFeed]);
 
   // deep-link highlight ?post=
   useEffect(() => {
@@ -1012,10 +921,9 @@ function App() {
 
   const switchFilter = async (mode) => {
     setFilter(mode); setState('loading');
-    try { await loadFeed(me && me.id, followingIds, mode, demo); setState('ready'); }
+    try { await loadFeed(me && me.id, followingIds, mode); setState('ready'); }
     catch (ex) {
-      if (DB.isNetworkError(ex) && window.GARAGE_DEMO) { await startDemo('unreachable'); return; }
-      setErrMsg((ex && ex.message) || String(ex));
+      console.error('[garage] feed filter failed:', ex);
       setState(DB.isNetworkError(ex) ? 'unreachable' : 'error');
     }
   };
@@ -1027,7 +935,6 @@ function App() {
   };
 
   const toggleLike = async (post) => {
-    if (demo) { flash('Demo mode — connect Supabase to like posts'); return; }
     if (!me) { location.href = 'auth.html?next=' + encodeURIComponent(location.pathname); return; }
     const isLiked = liked.has(post.id);
     // optimistic
@@ -1044,35 +951,16 @@ function App() {
     }
   };
 
-  if (state === 'notconfig') return (
+  // One visitor-facing state for every way the backend can fail. A person who
+  // came to read the feed can do nothing with "run supabase/schema.sql", and
+  // naming the project's host or the query error leaks deployment detail; the
+  // operator's diagnosis goes to the console instead (see the effect above).
+  if (state === 'notconfig' || state === 'unreachable' || state === 'error') return (
     <div className="feed-page"><div className="state">
-      <h2>Backend not connected</h2>
-      <p>The Garage feed needs Supabase. Add your keys to <b>config.local.js</b> and run <b>supabase/schema.sql</b>. See <b>supabase/README.md</b>.</p>
-    </div></div>
-  );
-  if (state === 'unreachable') {
-    let host = '';
-    try { host = new URL(window.SUPABASE_URL || '').host; } catch (e) { host = 'your Supabase project'; }
-    return (
-      <div className="feed-page"><div className="state">
-        <h2>Can’t reach the backend</h2>
-        <p><code>{host}</code> did not respond. The keys in <b>config.local.js</b> look fine, so the
-           project itself is most likely paused or deleted — a free Supabase project is paused after
-           about a week idle, which takes its subdomain offline.</p>
-        <ol>
-          <li>Open the Supabase dashboard and resume the project.</li>
-          <li>If it is gone, create a new one and run <b>supabase/schema.sql</b> on it.</li>
-          <li>Put the new URL and anon key in <b>site/config.local.js</b>, then reload.</li>
-        </ol>
-      </div></div>
-    );
-  }
-  if (state === 'error') return (
-    <div className="feed-page"><div className="state">
-      <h2>Couldn’t load the feed</h2>
-      <p>{errMsg}</p>
-      <p style={{marginTop:'12px',fontSize:'13.5px'}}>The backend answered but the query failed —
-         check that <b>supabase/schema.sql</b> has been run on this project.</p>
+      <h2>The Garage is unavailable</h2>
+      <p>We can’t load the community feed right now. This is on our side — please try again shortly.</p>
+      <button className="btn btn-accent btn-sm" style={{marginTop:'18px'}}
+        onClick={() => location.reload()}>Try again</button>
     </div></div>
   );
 
@@ -1081,7 +969,7 @@ function App() {
       <div className="feed-col">
         <div className="feed-head">
           <div className="eyebrow">The Garage <span className="pp">Community</span>
-            <span className={'live' + (live ? '' : ' off')}><span className="d"/>{live ? 'Live' : demo ? 'Demo' : 'Feed'}</span>
+            <span className={'live' + (live ? '' : ' off')}><span className="d"/>{live ? 'Live' : 'Feed'}</span>
           </div>
           {tab === 'dealers'
             ? <>
@@ -1100,17 +988,15 @@ function App() {
           <button className={tab==='dealers'?'on':''} onClick={()=>setTab('dealers')}>Dealerships</button>
         </div>
 
-        {demo && showBar && <DemoBar reason={demoReason} onClose={()=>setShowBar(false)} />}
-
         {tab === 'dealers'
-          ? <Dealers me={me} demo={demo} flash={flash} />
+          ? <Dealers me={me} flash={flash} />
           : <>
-            {!demo && (me
+            {me
               ? <Composer me={me} onPosted={onPosted} flash={flash} />
               : <div className="join">
                   <div className="tx"><div className="t">Join the conversation</div><div className="s">Sign in to post, like and comment.</div></div>
                   <a className="btn btn-accent btn-sm" href={'auth.html?next=' + encodeURIComponent('garage.html')}>Sign in <span className="arr">→</span></a>
-                </div>)}
+                </div>}
 
             {state === 'loading'
               ? <><div className="skeleton"/><div className="skeleton"/></>
@@ -1121,7 +1007,7 @@ function App() {
                   </div>
                 : posts.map(p => (
                     <Post key={p.id} post={p} me={me} liked={liked.has(p.id)} onToggleLike={toggleLike}
-                          flash={flash} highlight={highlight === p.id} demo={demo} />
+                          flash={flash} highlight={highlight === p.id} />
                   ))}
           </>}
       </div>

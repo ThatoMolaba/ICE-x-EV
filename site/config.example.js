@@ -6,8 +6,9 @@
 // forum, saved comparisons, bookings). Both values live under
 // Supabase → Project Settings → API. The anon key is SAFE in the browser: it is
 // protected by the Row-Level Security policies installed by supabase/schema.sql.
-// Until these are set, community pages show a "Connect your backend" notice
-// instead of breaking. Setup guide: supabase/README.md
+// Until these are set, community pages show an "unavailable" notice instead of
+// breaking, and log the reason to the browser console. Setup guide:
+// supabase/README.md
 window.SUPABASE_URL      = ""; // e.g. "https://xxxx.supabase.co"
 window.SUPABASE_ANON_KEY = ""; // the long anon/public JWT
 
