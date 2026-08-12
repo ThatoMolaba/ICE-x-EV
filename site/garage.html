@@ -545,7 +545,10 @@ function Post({ post, me, liked, onToggleLike, flash, highlight, demo }) {
   );
 }
 
-function DemoBar({ onClose }) {
+// `reason` distinguishes the two ways we end up on sample data. Telling a
+// visitor the project "isn't responding" when no project was ever configured
+// sends them hunting for an outage that doesn't exist.
+function DemoBar({ reason, onClose }) {
   let host = '';
   try { host = new URL(window.SUPABASE_URL || '').host; } catch (e) { host = 'your Supabase project'; }
   return (
@@ -556,10 +559,15 @@ function DemoBar({ onClose }) {
       <div className="tx">
         <div className="t">Demo mode — this is sample data</div>
         <div className="s">
-          <b>{host}</b> isn’t responding, so the posts and dealerships below are local
-          sample data and nothing can be saved. A free Supabase project is paused after about a week idle, which removes its
-          subdomain — resume it in the dashboard, or point <b>config.local.js</b> at a new project
-          and re-run <b>supabase/schema.sql</b>.
+          {reason === 'unconfigured'
+            ? <>No Supabase backend is configured on this deployment, so the posts and dealerships
+               below are local sample data and nothing can be saved. <b>config.local.js</b> holds the
+               keys and is deliberately never committed — copy <b>site/config.example.js</b> to it and
+               run <b>supabase/schema.sql</b> to see live data. See <b>supabase/README.md</b>.</>
+            : <><b>{host}</b> isn’t responding, so the posts and dealerships below are local
+               sample data and nothing can be saved. A free Supabase project is paused after about a week idle, which removes its
+               subdomain — resume it in the dashboard, or point <b>config.local.js</b> at a new project
+               and re-run <b>supabase/schema.sql</b>.</>}
         </div>
       </div>
       <button className="x" onClick={onClose} aria-label="Dismiss"><Ico.X/></button>
@@ -883,7 +891,8 @@ function App() {
   const [live, setLive] = useState(false);
   const [toast, setToast] = useState('');
   const [highlight, setHighlight] = useState(null);
-  const [demo, setDemo] = useState(false);         // backend unreachable → sample data
+  const [demo, setDemo] = useState(false);         // no usable backend → sample data
+  const [demoReason, setDemoReason] = useState('unreachable'); // unconfigured | unreachable
   const [showBar, setShowBar] = useState(true);
   const knownIds = useRef(new Set());
   const flash = (m) => { setToast(m); clearTimeout(flash._t); flash._t = setTimeout(()=>setToast(''), 2400); };
@@ -915,8 +924,9 @@ function App() {
     }
   }, []);
 
-  const startDemo = useCallback(async () => {
+  const startDemo = useCallback(async (reason) => {
     setDemo(true);
+    setDemoReason(reason || 'unreachable');
     setMe(null);
     setLive(false);
     setFilter('all');
@@ -928,13 +938,22 @@ function App() {
   useEffect(() => {
     let chan = null;
     (async () => {
-      if (!DB || !DB.configured) { setState('notconfig'); return; }
+      // No keys at all. config.local.js is git-ignored, so a deployed build has
+      // no config file to load and lands here every time — the hard notice made
+      // the whole community layer unreachable in the one place most people see
+      // it. Sample data is the better default; the notice is kept only for the
+      // case where there is nothing at all to render.
+      if (!DB || !DB.configured) {
+        if (window.GARAGE_DEMO) await startDemo('unconfigured');
+        else setState('notconfig');
+        return;
+      }
 
       // A configured-but-dead project (paused/deleted → no DNS) would otherwise
       // surface as a bare "TypeError: Failed to fetch". Probe first, then fall
       // back to sample data so the community UI is still reviewable.
       if ((await DB.probe()) !== 'ok') {
-        if (window.GARAGE_DEMO) await startDemo();
+        if (window.GARAGE_DEMO) await startDemo('unreachable');
         else setState('unreachable');
         return;
       }
@@ -972,7 +991,7 @@ function App() {
           .subscribe((status) => setLive(status === 'SUBSCRIBED'));
       } catch (ex) {
         // The project can go away between the probe and the query.
-        if (DB.isNetworkError(ex) && window.GARAGE_DEMO) { await startDemo(); return; }
+        if (DB.isNetworkError(ex) && window.GARAGE_DEMO) { await startDemo('unreachable'); return; }
         setErrMsg((ex && ex.message) || String(ex));
         setState(DB.isNetworkError(ex) ? 'unreachable' : 'error');
       }
@@ -995,7 +1014,7 @@ function App() {
     setFilter(mode); setState('loading');
     try { await loadFeed(me && me.id, followingIds, mode, demo); setState('ready'); }
     catch (ex) {
-      if (DB.isNetworkError(ex) && window.GARAGE_DEMO) { await startDemo(); return; }
+      if (DB.isNetworkError(ex) && window.GARAGE_DEMO) { await startDemo('unreachable'); return; }
       setErrMsg((ex && ex.message) || String(ex));
       setState(DB.isNetworkError(ex) ? 'unreachable' : 'error');
     }
@@ -1081,7 +1100,7 @@ function App() {
           <button className={tab==='dealers'?'on':''} onClick={()=>setTab('dealers')}>Dealerships</button>
         </div>
 
-        {demo && showBar && <DemoBar onClose={()=>setShowBar(false)} />}
+        {demo && showBar && <DemoBar reason={demoReason} onClose={()=>setShowBar(false)} />}
 
         {tab === 'dealers'
           ? <Dealers me={me} demo={demo} flash={flash} />
