@@ -33,8 +33,14 @@ is the one-time setup. Budget ~15 minutes. Free tier is plenty to launch.
    window.SUPABASE_URL      = "https://xxxx.supabase.co";
    window.SUPABASE_ANON_KEY = "eyJhbGciOi...your-anon-key...";
    ```
-   > Until these are set, every community page shows a friendly "Connect your
-   > backend" notice instead of breaking — so you can browse the UI first.
+   > Until these are set, every community page shows an "unavailable" notice
+   > instead of breaking, and logs the reason to the browser console.
+
+   **Deployed (Render):** don't create this file. Set `SUPABASE_URL` and
+   `SUPABASE_ANON_KEY` in the service environment instead — `dev-server.mjs`
+   serves `/config.local.js` from those variables at request time, so a restart
+   is enough and no build step is involved. A real file on disk still wins
+   locally, so your development setup is unaffected.
 
 ## 4. Turn on authentication
 

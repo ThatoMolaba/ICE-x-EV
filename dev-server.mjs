@@ -129,6 +129,40 @@ createServer(async (req, res) => {
   }
 
   if (pathname === '/') pathname = '/index.html';
+
+  // config.local.js carries the browser's Supabase keys and is git-ignored, so
+  // it does not exist in a deployed checkout. render.yaml generates it at build
+  // time — but only if the Blueprint is actually applied, and if the service was
+  // created by hand in the dashboard it never runs, leaving every community page
+  // permanently "unavailable" with no clue why. Serving it from the environment
+  // here removes the build step from the critical path: set the vars, restart,
+  // done. A real file on disk still wins, so local development is unchanged.
+  //
+  // Only browser-safe values go in. ANTHROPIC_API_KEY and the *server* Maps key
+  // must never appear here — this response is public.
+  if (pathname === '/config.local.js') {
+    try {
+      const onDisk = await readFile(join(SITE, 'config.local.js'));
+      res.setHeader('Content-Type', MIME['.js']);
+      res.setHeader('Cache-Control', 'no-store');
+      return res.end(onDisk);
+    } catch {
+      const js = [
+        '// Generated per-request from the server environment (see dev-server.mjs).',
+        'window.SUPABASE_URL      = ' + JSON.stringify(process.env.SUPABASE_URL || '') + ';',
+        'window.SUPABASE_ANON_KEY = ' + JSON.stringify(process.env.SUPABASE_ANON_KEY || '') + ';',
+        // Deliberately a distinct name from the server-side GOOGLE_MAPS_API_KEY:
+        // that one is IP-restricted and must not reach a browser.
+        'window.GOOGLE_MAPS_API_KEY = ' + JSON.stringify(process.env.PUBLIC_GOOGLE_MAPS_API_KEY || '') + ';',
+        'window.API_BASE = "";',
+        '',
+      ].join('\n');
+      res.setHeader('Content-Type', MIME['.js']);
+      res.setHeader('Cache-Control', 'no-store');
+      return res.end(js);
+    }
+  }
+
   const file = join(SITE, pathname);
   if (!file.startsWith(SITE)) { res.statusCode = 403; return res.end('forbidden'); }
 

@@ -1,7 +1,32 @@
+# Render Blueprint.
+#
+# The browser config (site/config.local.js) is NOT generated here any more.
+# It used to be written by buildCommand, which meant the community pages only
+# worked if this Blueprint was actually applied — a service created by hand in
+# the dashboard never ran it, and the Garage sat on "unavailable" with nothing
+# to indicate why. dev-server.mjs now serves that file from the environment at
+# request time, so both routes behave identically and setting a variable takes
+# effect on restart rather than on rebuild.
 services:
   - type: web
     name: voltage-tco
     env: node
-    buildCommand: npm install && echo "window.SUPABASE_URL='$SUPABASE_URL'; window.SUPABASE_ANON_KEY='$SUPABASE_ANON_KEY'; window.API_BASE='';" > site/config.local.js
+    buildCommand: npm install
     startCommand: node dev-server.mjs
     autoDeploy: true
+    envVars:
+      # Browser-safe: protected by the RLS policies in supabase/schema.sql.
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      # Server-side only — never reaches the browser. Required by /api/scan.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # Server-side Maps key for /api/chargers (IP-restricted).
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+      # Optional, and a DIFFERENT key: the referrer-restricted browser key used
+      # to render the map canvas. Safe to expose; the server key is not.
+      - key: PUBLIC_GOOGLE_MAPS_API_KEY
+        sync: false
