@@ -24,125 +24,22 @@
 //   "notes": [ "…" ]
 // }
 
-const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-  "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
-
-// Only these hosts may be fetched. This endpoint takes a URL from the caller,
-// so without an allowlist it is an open proxy — anyone could point it at
-// internal metadata endpoints or use the deployment to launder requests.
-const ALLOWED_HOSTS = ["autotrader.co.za", "www.autotrader.co.za"];
-
-const FETCH_TIMEOUT = 12000;
-
-/* ------------------------------------------------------------------ utils */
-
-const clean = (s) =>
-  String(s || "")
-    .replace(/&#xA0;|&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/&quot;/gi, '"')
-    .replace(/\s+/g, " ")
-    .trim();
-
-const toNumber = (s) => {
-  const digits = String(s || "").replace(/[^\d]/g, "");
-  return digits ? parseInt(digits, 10) : null;
-};
-
-async function getHtml(url) {
-  const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), FETCH_TIMEOUT);
-  try {
-    const r = await fetch(url, {
-      headers: { "user-agent": UA, accept: "text/html,application/xhtml+xml" },
-      redirect: "follow",
-      signal: ctl.signal,
-    });
-    if (!r.ok) return { status: r.status, html: null };
-    return { status: r.status, html: await r.text() };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-function meta(html, prop) {
-  const re = new RegExp(
-    '<meta[^>]+(?:property|name)=["\']' + prop + '["\'][^>]*content=["\']([^"\']*)',
-    "i"
-  );
-  const alt = new RegExp(
-    '<meta[^>]+content=["\']([^"\']*)["\'][^>]*(?:property|name)=["\']' + prop + '["\']',
-    "i"
-  );
-  const m = html.match(re) || html.match(alt);
-  return m ? clean(m[1]) : null;
-}
-
-/* -------------------------------------------------------------- estimates */
-
-// Listings never publish fuel consumption, but TCO is meaningless without it.
-// These are transparent heuristics, returned flagged as estimates so the UI can
-// mark them and the user can overwrite them.
-//
-// L/100km ≈ 3.6 + 1.75 × engine litres, adjusted for body, ×0.85 for diesel.
-// Checked against the figures this project already used: Polo 1.0 TSI 5.9,
-// Corolla 1.8 6.6, Golf GTI 2.0 7.2, Ranger 2.0d 7.6, Fortuner 2.8d 7.8.
-const BODY_FUEL_ADJ = { bakkie: 1.3, suv: 0.8, mpv: 0.6, sedan: 0, hatch: 0, coupe: 0 };
-const BODY_KWH = { bakkie: 22.0, suv: 18.0, mpv: 18.0, sedan: 16.5, hatch: 15.5, coupe: 16.0 };
-
-function estimateUse(powertrain, engine, body, fuel) {
-  if (powertrain === "ev") return BODY_KWH[body] || 16.5;
-  const litres = engine && engine > 0.5 && engine < 8 ? engine : 1.8;
-  let l = 3.6 + 1.75 * litres + (BODY_FUEL_ADJ[body] || 0);
-  if (fuel === "diesel") l *= 0.85;
-  if (fuel === "hybrid") l *= 0.72;
-  return Math.round(Math.max(3.5, Math.min(20, l)) * 10) / 10;
-}
-
-// Service + tyres + sundries per year. EVs skip oil, filters and plugs and run
-// far fewer wear items, so they sit at roughly a third of an equivalent ICE.
-function estimateMaint(powertrain, price) {
-  const p = price || 400000;
-  const rate = powertrain === "ev" ? 0.006 : 0.017;
-  return Math.round((p * rate) / 500) * 500;
-}
-
-// Straight-ish annual depreciation. Used stock has already taken the first,
-// steepest hit, so it declines more slowly from here.
-function estimateDep(powertrain, condition) {
-  const used = /used|demo/i.test(condition || "");
-  if (powertrain === "ev") return used ? 15 : 18;
-  return used ? 10 : 12;
-}
-
-function detectBody(text) {
-  const t = String(text || "").toLowerCase();
-  if (/double cab|single cab|super cab|bakkie|pick ?up|\bd\/c\b/.test(t)) return "bakkie";
-  if (/suv|crossover|4x4|awd|cross\b/.test(t)) return "suv";
-  if (/mpv|kombi|panel van|people mover|7 seat/.test(t)) return "mpv";
-  if (/coupe|cabriolet|roadster|convertible/.test(t)) return "coupe";
-  if (/sedan|saloon/.test(t)) return "sedan";
-  return "hatch";
-}
-
-function detectFuel(text) {
-  const t = String(text || "").toLowerCase();
-  if (/\belectric\b|\bev\b/.test(t)) return "electric";
-  if (/plug-?in|\bphev\b/.test(t)) return "phev";
-  if (/hybrid|\bhev\b/.test(t)) return "hybrid";
-  if (/diesel|\btdi\b|\bgd-?6\b|\bcrdi\b|\bd-?4d\b|\bsit\b|\btdci\b/.test(t)) return "diesel";
-  return "petrol";
-}
-
-// Engine capacity in litres, from strings like "2.0 SiT", "1.5T", "A45 S".
-function detectEngine(text) {
-  const m = String(text || "").match(/\b([0-8][.,]\d)\b\s*(?:t|tsi|tdi|d|l)?\b/i);
-  if (!m) return null;
-  const v = parseFloat(m[1].replace(",", "."));
-  return v >= 0.6 && v <= 8 ? v : null;
-}
+// The fetch/parse/estimate helpers moved to lib/cars.js when api/scan.js needed
+// the same ones. Only listing-page parsing is specific to this endpoint.
+import {
+  ALLOWED_HOSTS,
+  clean,
+  toNumber,
+  getHtml,
+  meta,
+  estimateUse,
+  estimateMaint,
+  estimateDep,
+  detectBody,
+  detectFuel,
+  detectEngine,
+  findElectric,
+} from "../lib/cars.js";
 
 /* ------------------------------------------------------ listing extraction */
 
@@ -219,99 +116,6 @@ function parseListing(html, url) {
     estimated: ["use", "maint", "dep"],
     url,
   };
-}
-
-/* ------------------------------------------------- search-result extraction */
-
-// Result tiles use build-hashed class names, which change on every AutoTrader
-// deploy — matching on them would break silently. The anchor href and the
-// tile's visible text are stable, so we split on the anchor and read the text.
-function parseResults(html, limit) {
-  const out = [];
-  const re = /<a href="(\/car-for-sale\/[^"]+?\/(\d{6,}))"[^>]*>/gi;
-
-  // Collect anchor positions first so each tile can be bounded by the next
-  // one. A fixed-size slice overruns into the following tile and picks up its
-  // "New"/"Used"/"Automatic" tags, mislabelling the car.
-  const hits = [];
-  let mm;
-  while ((mm = re.exec(html))) hits.push({ index: mm.index, href: mm[1], id: mm[2] });
-
-  const seen = new Set();
-  for (let k = 0; k < hits.length && out.length < limit; k++) {
-    const m = hits[k];
-    const href = m.href, id = m.id;
-    if (seen.has(id)) continue;
-    seen.add(id);
-
-    const end = k + 1 < hits.length ? hits[k + 1].index : Math.min(html.length, m.index + 6000);
-    const chunk = html.slice(m.index, end);
-    const parts = clean(
-      chunk.replace(/<[^>]+>/g, "|").replace(/\|+/g, "|")
-    ).split("|").map((s) => s.trim()).filter(Boolean);
-
-    const priceSeg = parts.find((p) => /^R\s*[\d\s]{5,}$/.test(p));
-    const nameIdx = parts.findIndex((p) => /^(19|20)\d{2}\s+\S/.test(p));
-    if (nameIdx < 0) continue;
-
-    const yearName = parts[nameIdx];
-    const next = parts[nameIdx + 1] || "";
-    const isTag = /^(New|Used|Demo|Automatic|Manual|Electric|Petrol|Diesel|Hybrid)$/i;
-    const variant = isTag.test(next) ? null : next;
-
-    const ym = yearName.match(/^((?:19|20)\d{2})\s+(.+)$/);
-    out.push({
-      id,
-      url: "https://www.autotrader.co.za" + href,
-      year: ym ? parseInt(ym[1], 10) : null,
-      name: clean((ym ? ym[2] : yearName) + (variant ? " " + variant : "")),
-      variant: variant || null,
-      price: priceSeg ? toNumber(priceSeg) : null,
-      condition: parts.find((p) => /^(New|Used|Demo)$/i.test(p)) || null,
-      transmission: parts.find((p) => /^(Automatic|Manual)$/i.test(p)) || null,
-      fuel: (parts.find((p) => /^(Electric|Petrol|Diesel|Hybrid)$/i.test(p)) || "").toLowerCase() || null,
-      dealer: null,
-    });
-  }
-  return out;
-}
-
-// Live electric stock in the same money as the pasted car. A wide-ish band,
-// because the point is "what could I have bought instead", not an exact match.
-async function findElectric(price) {
-  const from = price ? Math.round((price * 0.6) / 10000) * 10000 : 300000;
-  const to = price ? Math.round((price * 1.6) / 10000) * 10000 : 900000;
-  const url =
-    "https://www.autotrader.co.za/cars-for-sale?fueltype=Electric" +
-    "&pricefrom=" + from + "&priceto=" + to;
-  const { html } = await getHtml(url);
-  if (!html) return { list: [], band: [from, to] };
-
-  const rows = parseResults(html, 24);
-  // One entry per model — six near-identical Atto 3s is not a set of options.
-  const byModel = new Map();
-  for (const r of rows) {
-    const key = clean(r.name).toLowerCase().split(/\s+/).slice(0, 3).join(" ");
-    const prev = byModel.get(key);
-    if (!prev || (r.price || 1e9) < (prev.price || 1e9)) byModel.set(key, r);
-  }
-  const list = [...byModel.values()]
-    .filter((r) => r.price)
-    .sort((a, b) => Math.abs(a.price - (price || 0)) - Math.abs(b.price - (price || 0)))
-    .slice(0, 6)
-    .map((r) => {
-      const body = detectBody(r.name);
-      return {
-        ...r,
-        powertrain: "ev",
-        body,
-        use: estimateUse("ev", null, body, "electric"),
-        maint: estimateMaint("ev", r.price),
-        dep: estimateDep("ev", r.condition),
-        estimated: ["use", "maint", "dep"],
-      };
-    });
-  return { list, band: [from, to] };
 }
 
 /* ----------------------------------------------------------------- handler */

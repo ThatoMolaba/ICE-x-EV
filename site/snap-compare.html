@@ -85,6 +85,61 @@
   .verdict .tx .k{font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg-3);}
   .verdict .tx .v{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:600;letter-spacing:-0.01em;margin-top:4px;}
   .verdict .tx .v b{color:var(--accent);}
+  /* the scanned photo fills the frame the silhouette used to occupy */
+  .scanframe .shot{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+  .scanframe.busy .shot{filter:saturate(.5) brightness(.7);}
+
+  .drop{background:var(--surface);border:1px dashed var(--line);border-radius:20px;
+    padding:44px 28px;text-align:center;margin-bottom:18px;}
+  .drop.over{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 6%,var(--surface));}
+  .drop h3{font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:600;letter-spacing:-0.01em;}
+  .drop p{color:var(--fg-2);font-size:14.5px;margin-top:8px;max-width:460px;margin-inline:auto;}
+  .drop .acts{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:22px;}
+  .drop .hint{font-size:12.5px;color:var(--fg-3);margin-top:16px;}
+
+  .conf{font-size:11px;letter-spacing:.09em;text-transform:uppercase;padding:3px 9px;border-radius:999px;
+    border:1px solid var(--line);color:var(--fg-3);white-space:nowrap;}
+  .conf.high{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 34%,transparent);}
+  .conf.low{color:var(--warn,#d9a441);border-color:color-mix(in srgb,var(--warn,#d9a441) 40%,transparent);}
+
+  .askbar{display:flex;gap:12px;align-items:flex-start;background:color-mix(in srgb,var(--warn,#d9a441) 9%,var(--surface));
+    border:1px solid color-mix(in srgb,var(--warn,#d9a441) 34%,var(--line-2));border-radius:16px;
+    padding:15px 17px;margin-bottom:18px;flex-wrap:wrap;}
+  .askbar .tx{flex:1;min-width:240px;}
+  .askbar .t{font-size:13.5px;font-weight:600;}
+  .askbar .s{font-size:12.5px;color:var(--fg-2);margin-top:3px;line-height:1.5;}
+  .askbar input{height:40px;border-radius:10px;border:1px solid var(--line);background:var(--bg-2);
+    color:var(--fg);font:inherit;font-size:13.5px;padding:0 12px;min-width:200px;}
+
+  .sect{margin-top:34px;}
+  .sect > h2{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:600;letter-spacing:-0.015em;}
+  .sect > .sub{color:var(--fg-2);font-size:14px;margin-top:6px;}
+
+  .buylist{margin-top:16px;border:1px solid var(--line-2);border-radius:18px;overflow:hidden;background:var(--surface);}
+  .buyrow{display:flex;align-items:center;gap:16px;padding:15px 20px;border-top:1px solid var(--line-2);
+    color:inherit;transition:background .18s;}
+  .buyrow:first-child{border-top:0;}
+  .buyrow:hover{background:var(--bg-2);}
+  .buyrow .nm{flex:1;min-width:0;}
+  .buyrow .nm b{font-size:14.5px;font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .buyrow .nm span{font-size:12.5px;color:var(--fg-3);}
+  .buyrow .pr{font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .buyrow .go{color:var(--fg-3);flex:0 0 auto;}
+  .buyrow .go svg{width:16px;height:16px;display:block;}
+
+  .altpick{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;}
+  .altpick button{border:1px solid var(--line);background:var(--bg-2);color:var(--fg-2);font:inherit;font-size:13px;
+    padding:8px 14px;border-radius:999px;cursor:pointer;transition:all .18s;}
+  .altpick button.on{background:var(--accent);border-color:transparent;color:var(--accent-ink);}
+  .altpick button:not(.on):hover{border-color:var(--fg-3);color:var(--fg);}
+
+  .notes{margin-top:18px;padding-left:18px;color:var(--fg-3);font-size:13px;line-height:1.7;}
+  .notes li{margin-top:4px;}
+  .est{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg-3);
+    border:1px solid var(--line);border-radius:4px;padding:1px 4px;margin-left:6px;vertical-align:middle;}
+
+  .empty{padding:34px 20px;text-align:center;color:var(--fg-2);font-size:14px;}
+
   @media (max-width:900px){
     .lenses{grid-template-columns:1fr;}
     .cmp-row{grid-template-columns:1fr 90px 1fr;}
@@ -123,10 +178,67 @@
 <div id="root"></div>
 
 <script src="site.js"></script>
+<script src="config.local.js"></script>
 <script type="text/babel">
-const { useState } = React;
+const { useState, useEffect, useRef, useCallback } = React;
+const API = (window.API_BASE || '') + '/api';
+
 const group = (n) => Math.round(n||0).toString().replace(/\B(?=(\d{3})+(?!\d))/g,' ');
-const R = (n) => 'R '+group(n);
+const R = (n) => (n == null ? '—' : 'R '+group(n));
+const ANNUAL_KM = 15000;   // SA average; the full calculator lets you change it
+const YEARS = 5;
+
+/* ------------------------------------------------------------------ costing */
+// One place for the money, so every figure on the page agrees. Uses the live
+// rates from /api/rates rather than numbers baked into the markup.
+
+const unitPrice = (fuel, rates) =>
+  fuel === 'electric' ? rates.electricity.home
+  : fuel === 'diesel' ? rates.fuel.diesel50_inland
+  : rates.fuel.petrol95_inland;
+
+const unitLabel = (fuel) => fuel === 'electric' ? 'kWh/100km' : 'L/100km';
+
+function annualRun(v, rates) {
+  if (!v || v.use == null) return null;
+  return Math.round((v.use / 100) * ANNUAL_KM * unitPrice(v.fuel, rates) + (v.maint || 0));
+}
+// Depreciation is the money the car quietly costs you even parked, so a
+// five-year total that leaves it out flatters whichever car is dearer to buy.
+function fiveYear(v, rates) {
+  const run = annualRun(v, rates);
+  if (run == null || !v.price) return null;
+  const lost = Math.round(v.price * (1 - Math.pow(1 - (v.dep || 12) / 100, YEARS)));
+  return lost + run * YEARS;
+}
+
+/* -------------------------------------------------------------------- image */
+// Shrink before upload: a modern phone photo is 4-8MB, which is slow to send,
+// slow to read, and no more accurate than a 1400px one.
+function shrink(file, maxDim, quality) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(c.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('That file could not be read as an image.')); };
+    img.src = url;
+  });
+}
+
+/* ------------------------------------------------------------------- pieces */
+
+const Trophy = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4h12v4a6 6 0 0 1-12 0V4z"/><path d="M6 6H3v2a3 3 0 0 0 3 3M18 6h3v2a3 3 0 0 1-3 3M9 20h6M12 14v6"/></svg>;
+const Ext = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3"/></svg>;
+const Redo = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>;
 
 const CarSilh = () => (
   <svg viewBox="0 0 120 50" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round">
@@ -135,103 +247,314 @@ const CarSilh = () => (
   </svg>
 );
 
-const A = { name:'VW Polo 1.0 TSI', kind:'ICE', year:'2024', price:374900, drive:'Petrol · Manual', eff:'6.5 L/100km', fuelCost:'R 24.50 / L', run:57720, tco5:663500 };
-const B = { name:'BYD Dolphin Comfort', kind:'EV', year:'2024', price:539900, drive:'Electric · Auto', eff:'15.9 kWh/100km', fuelCost:'R 3.30 / kWh', run:29593, tco5:687865 };
-
-function Lens({ car, ev }) {
+function Lens({ car, ev, photo, busy, badge, onRescan, rates }) {
+  const est = (k) => car && car.estimated && car.estimated.indexOf(k) !== -1;
   return (
     <div className={'lens' + (ev ? ' ev' : '')}>
-      <div className="scanframe">
-        <div className="silh"><CarSilh/></div>
+      <div className={'scanframe' + (busy ? ' busy' : '')}>
+        {photo
+          ? <img className="shot" src={photo} alt=""/>
+          : car && car.image
+            ? <img className="shot" src={car.image} alt=""/>
+            : <div className="silh"><CarSilh/></div>}
         <span className="corner c1"/><span className="corner c2"/><span className="corner c3"/><span className="corner c4"/>
-        <div className="scanline"/>
-        <span className="scanbadge">{ev ? 'Scanned · EV' : 'Scanned · ICE'}</span>
+        {busy && <div className="scanline"/>}
+        {badge && <span className="scanbadge">{badge}</span>}
       </div>
       <div className="lens-body">
         <div className="row1">
-          <h3>{car.name}</h3>
-          <span className="tag">Car {ev ? 'B' : 'A'}</span>
+          <h3>{car ? car.name : (ev ? 'No alternative yet' : 'Nothing scanned yet')}</h3>
+          <span className="tag">{ev ? 'Electric' : 'Scanned'}</span>
         </div>
-        <div className="chips">
-          <span className={'chip' + (ev ? ' ev' : '')}>{car.drive}</span>
-          <span className="chip">{car.year}</span>
-          <span className="chip">{car.eff}</span>
-        </div>
+        {car && (
+          <div className="chips">
+            <span className={'chip' + (ev ? ' ev' : '')}>{car.fuel}</span>
+            {car.year && <span className="chip">{car.years && car.years[0] !== car.years[1] ? car.years[0] + '–' + car.years[1] : car.year}</span>}
+            {car.use != null && <span className="chip">{car.use} {unitLabel(car.fuel)}{est('use') && <span className="est">est</span>}</span>}
+            {car.body && <span className="chip">{car.body}</span>}
+          </div>
+        )}
       </div>
       <div className="lens-foot">
-        <span className="display" style={{fontSize:'22px'}}>{R(car.price)}</span>
-        <span className="rescan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Rescan</span>
+        <span className="display" style={{fontSize:'22px'}}>{car ? R(car.price) : '—'}</span>
+        {onRescan && <span className="rescan" onClick={onRescan}><Redo/>Rescan</span>}
       </div>
     </div>
   );
 }
 
-const Trophy = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4h12v4a6 6 0 0 1-12 0V4z"/><path d="M6 6H3v2a3 3 0 0 0 3 3M18 6h3v2a3 3 0 0 1-3 3M9 20h6M12 14v6"/></svg>;
+/* ---------------------------------------------------------------------- app */
 
 function App() {
+  const [stage, setStage] = useState('idle');      // idle | scanning | ready | error
+  const [photo, setPhoto] = useState(null);
+  const [res, setRes] = useState(null);
+  const [err, setErr] = useState('');
+  const [rates, setRates] = useState(null);
+  const [pick, setPick] = useState(0);
   const [prio, setPrio] = useState('running');
-  const rows = [
-    { k:'Upfront price', a:R(A.price), b:R(B.price), aw:A.price<B.price, metric:'price' },
-    { k:'Drivetrain', a:A.drive, b:B.drive, aw:null, metric:null },
-    { k:'Efficiency', a:A.eff, b:B.eff, aw:null, metric:null },
-    { k:'Running cost', a:R(A.run), b:R(B.run), as:'/ year', bs:'/ year', aw:A.run<B.run, metric:'running' },
-    { k:'5-year total', a:R(A.tco5), b:R(B.tco5), aw:A.tco5<B.tco5, metric:'total' },
-  ];
-  const wins = {
-    price: { who:'VW Polo', d:R(Math.abs(A.price-B.price)), txt:'cheaper to buy today' },
-    running: { who:'BYD Dolphin', d:R(Math.abs(A.run-B.run)), txt:'cheaper to run every year' },
-    total: { who:'VW Polo', d:R(Math.abs(A.tco5-B.tco5)), txt:'cheaper across five years' },
+  const [variant, setVariant] = useState('');
+  const [over, setOver] = useState(false);
+  const fileRef = useRef(null);
+  const camRef = useRef(null);
+
+  useEffect(() => {
+    fetch(API + '/rates')
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => d && setRates(d))
+      .catch(() => {});
+  }, []);
+
+  const scan = useCallback(async (file) => {
+    if (!file) return;
+    setErr(''); setRes(null); setPick(0); setVariant('');
+    let dataUrl;
+    try {
+      dataUrl = await shrink(file, 1400, 0.82);
+    } catch (ex) {
+      setPhoto(null); setErr(ex.message); setStage('error'); return;
+    }
+    setPhoto(dataUrl);
+    setStage('scanning');
+    try {
+      const r = await fetch(API + '/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: dataUrl.split(',')[1], mime: 'image/jpeg' }),
+      });
+      const d = await r.json().catch(() => null);
+      if (!r.ok) {
+        setErr((d && d.message) || 'That scan did not work. Try again.');
+        setStage('error');
+        return;
+      }
+      setRes(d);
+      setVariant(d.vehicle.variant || '');
+      setStage('ready');
+    } catch (ex) {
+      setErr('Could not reach the scanner. Check your connection and try again.');
+      setStage('error');
+    }
+  }, []);
+
+  const onDrop = (e) => {
+    e.preventDefault(); setOver(false);
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) scan(f);
   };
-  const w = wins[prio];
+
+  const reset = () => { setStage('idle'); setPhoto(null); setRes(null); setErr(''); };
+
+  const busy = stage === 'scanning';
+  const v = res && res.vehicle;
+  const alts = (res && res.alternatives) || [];
+  const alt = alts.length ? alts[Math.min(pick, alts.length - 1)] : null;
+
+  // Only compare once both sides and the rates exist — a half-populated table
+  // that fills in later reads as a wrong answer.
+  const canCompare = !!(v && alt && rates && v.price && alt.price);
+  const aRun = canCompare ? annualRun(v, rates) : null;
+  const bRun = canCompare ? annualRun(alt, rates) : null;
+  const aTot = canCompare ? fiveYear(v, rates) : null;
+  const bTot = canCompare ? fiveYear(alt, rates) : null;
+
+  const rows = canCompare ? [
+    { k:'Upfront price', a:R(v.price), b:R(alt.price), aw:v.price < alt.price, metric:'price' },
+    { k:'Drivetrain', a:v.fuel, b:alt.fuel, aw:null, metric:null },
+    { k:'Efficiency', a:v.use + ' ' + unitLabel(v.fuel), b:alt.use + ' ' + unitLabel(alt.fuel), aw:null, metric:null },
+    { k:'Running cost', a:R(aRun), b:R(bRun), as:'/ year', bs:'/ year', aw:aRun < bRun, metric:'running' },
+    { k:'5-year total', a:R(aTot), b:R(bTot), as:'incl. depreciation', bs:'incl. depreciation', aw:aTot < bTot, metric:'total' },
+  ] : [];
+
+  const verdict = () => {
+    if (!canCompare) return null;
+    const pairs = {
+      price:   [v.price, alt.price, 'cheaper to buy today'],
+      running: [aRun, bRun, 'cheaper to run every year'],
+      total:   [aTot, bTot, 'cheaper across five years'],
+    };
+    const [a, b, txt] = pairs[prio];
+    const aWins = a < b;
+    return { who: aWins ? v.name : alt.name, d: R(Math.abs(a - b)), txt };
+  };
+  const w = verdict();
+
   return (
     <div className="app-page">
       <div className="wrap">
         <div className="app-head">
           <div className="eyebrow">Snap &amp; Compare <span className="pp">Vision</span></div>
-          <h1>Two cars, one glance.</h1>
-          <p>Point your camera at any two cars on the forecourt. We read the badges and put the real numbers side by side.</p>
+          <h1>Point. Shoot. Know.</h1>
+          <p>Photograph any car and we'll tell you what it is, what it really costs to run,
+             where you can buy one today — and the electric alternative, costed against it.</p>
         </div>
 
-        <div className="lenses">
-          <Lens car={A} />
-          <Lens car={B} ev />
-        </div>
+        <input ref={fileRef} type="file" accept="image/*" hidden
+               onChange={(e) => scan(e.target.files && e.target.files[0])}/>
+        <input ref={camRef} type="file" accept="image/*" capture="environment" hidden
+               onChange={(e) => scan(e.target.files && e.target.files[0])}/>
 
-        <div className="priobar">
-          <span className="lbl">What matters most to you?</span>
-          <div className="seg">
-            {[['price','Upfront price'],['running','Running cost'],['total','5-year total']].map(([k,l]) => (
-              <button key={k} className={prio===k?'on':''} onClick={()=>setPrio(k)}>{l}</button>
-            ))}
+        {stage === 'idle' && (
+          <div className={'drop' + (over ? ' over' : '')}
+               onDragOver={(e)=>{e.preventDefault(); setOver(true);}}
+               onDragLeave={()=>setOver(false)} onDrop={onDrop}>
+            <h3>Scan a car</h3>
+            <p>A three-quarter view works best. If it's on a forecourt, get the windscreen
+               price sticker in frame — that's the most reliable read by far.</p>
+            <div className="acts">
+              <button className="btn btn-accent" onClick={()=>camRef.current && camRef.current.click()}>Take a photo</button>
+              <button className="btn" onClick={()=>fileRef.current && fileRef.current.click()}>Choose a photo</button>
+            </div>
+            <div className="hint">Or drop an image here.</div>
           </div>
-        </div>
+        )}
 
-        <div className="cmp">
-          {rows.map((r) => {
-            const aWin = r.aw === true, bWin = r.aw === false;
-            const dim = r.metric && r.metric !== prio;
-            return (
-              <div className="cmp-row" key={r.k}>
-                <div className={'cmp-cell right' + (aWin ? ' win' : '')} style={dim?{opacity:.62}:null}>
-                  {r.a}{r.as && <span className="sub">{r.as}</span>}
-                </div>
-                <div className="mid">{r.k}</div>
-                <div className={'cmp-cell' + (bWin ? ' win' : '')} style={dim?{opacity:.62}:null}>
-                  {r.b}{r.bs && <span className="sub">{r.bs}</span>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="verdict">
-          <div className="ic"><Trophy/></div>
-          <div className="tx">
-            <div className="k">Verdict · by {prio === 'price' ? 'upfront price' : prio === 'running' ? 'running cost' : '5-year total'}</div>
-            <div className="v">The <b>{w.who}</b> wins — {w.d} {w.txt}.</div>
+        {stage === 'error' && (
+          <div className="drop">
+            <h3>That didn't work</h3>
+            <p>{err}</p>
+            <div className="acts">
+              <button className="btn btn-accent" onClick={()=>camRef.current && camRef.current.click()}>Take another</button>
+              <button className="btn" onClick={reset}>Start over</button>
+            </div>
           </div>
-          <a className="btn btn-accent" href="calculator.html">Model it fully <span className="arr">→</span></a>
-        </div>
+        )}
+
+        {(busy || stage === 'ready') && (
+          <>
+            <div className="lenses">
+              <Lens car={v} photo={photo} busy={busy} rates={rates}
+                    badge={busy ? 'Reading…' : (v && v.source === 'sticker' ? 'Read from sticker' : 'Identified')}
+                    onRescan={busy ? null : reset}/>
+              <Lens car={alt} ev rates={rates}
+                    badge={alt ? 'Electric alternative' : null}/>
+            </div>
+
+            {stage === 'ready' && v && (
+              <>
+                <div className="priobar">
+                  <span className="lbl">
+                    {v.name}
+                    <span className={'conf ' + v.confidence} style={{marginLeft:'10px'}}>{v.confidence} confidence</span>
+                  </span>
+                </div>
+
+                {!v.variant_confirmed && (
+                  <div className="askbar">
+                    <div className="tx">
+                      <div className="t">Which variant is it?</div>
+                      <div className="s">Trim moves the price more than anything else, and it usually
+                         can't be read off a photo. Correct this and the figures follow.</div>
+                    </div>
+                    <input value={variant} placeholder="e.g. 1.0 TSI Comfortline"
+                           onChange={(e)=>setVariant(e.target.value)}/>
+                  </div>
+                )}
+
+                {alts.length > 1 && (
+                  <div className="altpick">
+                    {alts.map((a, i) => (
+                      <button key={a.id || i} className={i === pick ? 'on' : ''} onClick={()=>setPick(i)}>
+                        {a.name} · {R(a.price)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {canCompare ? (
+                  <>
+                    <div className="priobar" style={{marginTop:'18px'}}>
+                      <span className="lbl">What matters most to you?</span>
+                      <div className="seg">
+                        {[['price','Upfront price'],['running','Running cost'],['total','5-year total']].map(([k,l]) => (
+                          <button key={k} className={prio===k?'on':''} onClick={()=>setPrio(k)}>{l}</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="cmp">
+                      {rows.map((r) => {
+                        const aWin = r.aw === true, bWin = r.aw === false;
+                        const dim = r.metric && r.metric !== prio;
+                        return (
+                          <div className="cmp-row" key={r.k}>
+                            <div className={'cmp-cell right' + (aWin ? ' win' : '')} style={dim?{opacity:.62}:null}>
+                              {r.a}{r.as && <span className="sub">{r.as}</span>}
+                            </div>
+                            <div className="mid">{r.k}</div>
+                            <div className={'cmp-cell' + (bWin ? ' win' : '')} style={dim?{opacity:.62}:null}>
+                              {r.b}{r.bs && <span className="sub">{r.bs}</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {w && (
+                      <div className="verdict">
+                        <div className="ic"><Trophy/></div>
+                        <div className="tx">
+                          <div className="k">Verdict · by {prio === 'price' ? 'upfront price' : prio === 'running' ? 'running cost' : '5-year total'}</div>
+                          <div className="v">The <b>{w.who}</b> wins — {w.d} {w.txt}.</div>
+                        </div>
+                        <a className="btn btn-accent" href="calculator.html">Model it fully <span className="arr">→</span></a>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="cmp"><div className="empty">
+                    {!alt ? 'No electric stock is listed to compare against right now.'
+                          : 'Not enough price information to compare these two yet.'}
+                  </div></div>
+                )}
+
+                <div className="sect">
+                  <h2>Where to buy one</h2>
+                  <div className="sub">Live listings on AutoTrader, newest first.</div>
+                  {res.buy && res.buy.length ? (
+                    <>
+                      <div className="buylist">
+                        {res.buy.map((b) => (
+                          <a className="buyrow" key={b.id} href={b.url} target="_blank" rel="noopener noreferrer">
+                            <div className="nm">
+                              <b>{b.year ? b.year + ' ' : ''}{b.name}</b>
+                              <span>{[b.condition, b.transmission, b.fuel].filter(Boolean).join(' · ')}</span>
+                            </div>
+                            <div className="pr">{R(b.price)}</div>
+                            <div className="go"><Ext/></div>
+                          </a>
+                        ))}
+                      </div>
+                      {res.searchUrl && (
+                        <div className="altpick">
+                          <a className="btn" href={res.searchUrl} target="_blank" rel="noopener noreferrer">
+                            See all on AutoTrader <span className="arr">→</span>
+                          </a>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="buylist"><div className="empty">
+                      Nothing matching is listed for sale right now.
+                    </div></div>
+                  )}
+                </div>
+
+                {res.notes && res.notes.length > 0 && (
+                  <ul className="notes">
+                    {res.notes.map((n, i) => <li key={i}>{n}</li>)}
+                  </ul>
+                )}
+                {rates && (
+                  <ul className="notes">
+                    <li>Costed at {ANNUAL_KM.toLocaleString('en-ZA')} km/year, using rates as of {rates.asOf}.
+                        Figures marked <span className="est">est</span> are our estimates, not from the advert.</li>
+                  </ul>
+                )}
+              </>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

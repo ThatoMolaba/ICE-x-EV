@@ -2,12 +2,14 @@
 //
 //   npm run dev:site      →  http://localhost:3000
 //
-// In production Vercel serves `site/` as static files and each `api/*.js` as a
+// On Vercel, `site/` is served as static files and each `api/*.js` as a
 // serverless function. A plain static server can't do the second half, so the
 // calculator's listing autofill would 404 locally. This mimics both, with no
 // dependencies and no Vercel login.
 //
-// It is a development convenience only — not used in the deployed build.
+// NOT dev-only any more: render.yaml sets `startCommand: node dev-server.mjs`,
+// so on Render this file IS the production server. Anything it does not
+// implement (request bodies, for one) is missing in production too.
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { readFileSync, existsSync } from 'node:fs';
@@ -31,8 +33,8 @@ for (const name of ['.env.local', '.env']) {
     process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
   }
 }
-const loaded = ['GOOGLE_MAPS_API_KEY'].filter((k) => process.env[k]);
-console.log('env loaded:', loaded.length ? loaded.join(', ') : '(none — endpoints will use sample data)');
+const loaded = ['GOOGLE_MAPS_API_KEY', 'ANTHROPIC_API_KEY'].filter((k) => process.env[k]);
+console.log('env loaded:', loaded.length ? loaded.join(', ') : '(none — endpoints will report unavailable)');
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -57,6 +59,32 @@ function shimRes(res) {
   };
 }
 
+// Vercel hands functions a parsed req.body; a bare node server does not, so
+// POST endpoints (/api/scan takes an uploaded photo) would see nothing at all.
+const MAX_BODY = 12 * 1024 * 1024;   // a shrunk photo is ~200KB; this is slack
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    if (req.method !== 'POST' && req.method !== 'PUT') return resolve(undefined);
+    let size = 0;
+    const chunks = [];
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > MAX_BODY) { reject(new Error('body too large')); req.destroy(); return; }
+      chunks.push(c);
+    });
+    req.on('end', () => {
+      const raw = Buffer.concat(chunks).toString('utf8');
+      if (!raw) return resolve(undefined);
+      if (/application\/json/i.test(req.headers['content-type'] || '')) {
+        try { return resolve(JSON.parse(raw)); } catch { return resolve(raw); }
+      }
+      resolve(raw);
+    });
+    req.on('error', reject);
+  });
+}
+
 async function serveApi(name, url, req, res) {
   const file = join(ROOT, 'api', name + '.js');
   try {
@@ -70,7 +98,15 @@ async function serveApi(name, url, req, res) {
   const mod = await import(pathToFileURL(file).href + '?t=' + Date.now());
   const query = Object.fromEntries(url.searchParams.entries());
   try {
-    await mod.default({ method: req.method, query, headers: req.headers, url: req.url }, shimRes(res));
+    let body;
+    try {
+      body = await readBody(req);
+    } catch (e) {
+      res.statusCode = 413;
+      res.setHeader('Content-Type', 'application/json');
+      return res.end(JSON.stringify({ error: 'too_large', message: 'Upload is too large.' }));
+    }
+    await mod.default({ method: req.method, query, body, headers: req.headers, url: req.url }, shimRes(res));
   } catch (err) {
     console.error('[api/' + name + ']', err);
     if (!res.writableEnded) {
