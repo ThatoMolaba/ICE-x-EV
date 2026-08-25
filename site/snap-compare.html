@@ -97,6 +97,45 @@
   .drop .acts{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:22px;}
   .drop .hint{font-size:12.5px;color:var(--fg-3);margin-top:16px;}
 
+  /* live camera */
+  .cam{position:relative;background:#000;border:1px solid var(--line-2);border-radius:20px;
+    overflow:hidden;margin-bottom:18px;}
+  .cam video{display:block;width:100%;max-height:72vh;object-fit:cover;background:#000;}
+  /* A selfie camera is mirrored to match what people expect of a mirror; the
+     captured frame is not, or badges and number plates would read backwards. */
+  .cam.user video{transform:scaleX(-1);}
+  .cam .guide{position:absolute;inset:18px;pointer-events:none;}
+  .cam .guide span{position:absolute;width:26px;height:26px;border:2px solid rgba(255,255,255,.85);}
+  .cam .guide .g1{top:0;left:0;border-right:0;border-bottom:0;}
+  .cam .guide .g2{top:0;right:0;border-left:0;border-bottom:0;}
+  .cam .guide .g3{bottom:0;left:0;border-right:0;border-top:0;}
+  .cam .guide .g4{bottom:0;right:0;border-left:0;border-top:0;}
+  .cam .tip{position:absolute;top:16px;left:50%;transform:translateX(-50%);max-width:82%;text-align:center;
+    font-size:12.5px;color:#fff;background:rgba(0,0,0,.5);border-radius:999px;padding:6px 14px;
+    backdrop-filter:blur(8px);pointer-events:none;}
+  .cam .bar{position:absolute;left:0;right:0;bottom:0;padding:20px 18px 22px;display:flex;
+    align-items:center;justify-content:space-between;gap:14px;
+    background:linear-gradient(to top,rgba(0,0,0,.78),transparent);}
+  .cam .bar .side{flex:0 0 64px;display:flex;justify-content:center;}
+  .shutter{width:68px;height:68px;border-radius:50%;border:4px solid #fff;background:rgba(255,255,255,.24);
+    cursor:pointer;padding:0;transition:transform .12s,background .18s;}
+  .shutter:hover{background:rgba(255,255,255,.42);}
+  .shutter:active{transform:scale(.93);}
+  .shutter:disabled{opacity:.45;cursor:default;}
+  .cambtn{width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.35);
+    background:rgba(0,0,0,.42);color:#fff;cursor:pointer;display:flex;align-items:center;
+    justify-content:center;padding:0;transition:background .18s;}
+  .cambtn:hover{background:rgba(0,0,0,.7);}
+  .cambtn svg{width:19px;height:19px;}
+  .camloading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:#fff;font-size:13.5px;letter-spacing:.02em;}
+  /* Freeze the frame the instant the shutter fires, so there is feedback before
+     the upload finishes rather than a live picture that looks like nothing happened. */
+  .camflash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;}
+  .camflash.on{animation:flash .32s ease-out;}
+  @keyframes flash{0%{opacity:.85;}100%{opacity:0;}}
+  @media (prefers-reduced-motion:reduce){.camflash.on{animation:none;}}
+
   .conf{font-size:11px;letter-spacing:.09em;text-transform:uppercase;padding:3px 9px;border-radius:999px;
     border:1px solid var(--line);color:var(--fg-3);white-space:nowrap;}
   .conf.high{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 34%,transparent);}
@@ -234,6 +273,24 @@ function shrink(file, maxDim, quality) {
   });
 }
 
+// Draw the current video frame to a canvas at upload size. videoWidth/Height
+// are the real sensor dimensions — the element's CSS size is whatever the
+// layout made it, and using that would upload a letterboxed crop.
+function grabFrame(video, maxDim, quality) {
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw || !vh) throw new Error('The camera has not produced a frame yet.');
+  const scale = Math.min(1, maxDim / Math.max(vw, vh));
+  const w = Math.max(1, Math.round(vw * scale));
+  const h = Math.max(1, Math.round(vh * scale));
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  c.getContext('2d').drawImage(video, 0, 0, w, h);
+  return c.toDataURL('image/jpeg', quality);
+}
+
+const cameraSupported = () =>
+  !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) && window.isSecureContext;
+
 /* ------------------------------------------------------------------- pieces */
 
 const Trophy = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4h12v4a6 6 0 0 1-12 0V4z"/><path d="M6 6H3v2a3 3 0 0 0 3 3M18 6h3v2a3 3 0 0 1-3 3M9 20h6M12 14v6"/></svg>;
@@ -246,6 +303,129 @@ const CarSilh = () => (
     <circle cx="34" cy="40" r="7" fill="var(--bg)"/><circle cx="92" cy="40" r="7" fill="var(--bg)"/>
   </svg>
 );
+
+const XIco = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>;
+const FlipIco = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>;
+
+/* --------------------------------------------------------------- the camera */
+// A live viewfinder rather than <input capture>: that only opens the native
+// camera app on a phone and degrades to a plain file picker on a laptop, which
+// is where most people will first try this.
+function Camera({ onCapture, onClose, onFallback }) {
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const [facing, setFacing] = useState('environment');
+  const [ready, setReady] = useState(false);
+  const [multi, setMulti] = useState(false);
+  const [flash, setFlash] = useState(false);
+  const [camErr, setCamErr] = useState('');
+
+  // Stopping every track matters: without it the camera stays powered and the
+  // recording indicator stays lit after the component goes away.
+  const stop = useCallback(() => {
+    const s = streamRef.current;
+    if (s) { s.getTracks().forEach((t) => t.stop()); streamRef.current = null; }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setReady(false); setCamErr('');
+      stop();
+      try {
+        // `ideal` rather than `exact` so a laptop with only a front camera still
+        // opens instead of throwing OverconstrainedError.
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: facing }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+          audio: false,
+        });
+        if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
+        streamRef.current = stream;
+        const el = videoRef.current;
+        if (el) {
+          el.srcObject = stream;
+          // iOS Safari refuses to play inline without both of these.
+          el.setAttribute('playsinline', '');
+          el.muted = true;
+          try { await el.play(); } catch (e) { /* autoplay policy; the poster still shows */ }
+        }
+        if (!cancelled) setReady(true);
+
+        // Only offer the flip control when there is somewhere to flip to.
+        try {
+          const devs = await navigator.mediaDevices.enumerateDevices();
+          if (!cancelled) setMulti(devs.filter((d) => d.kind === 'videoinput').length > 1);
+        } catch (e) { /* label/permission quirks — the control just stays hidden */ }
+      } catch (ex) {
+        if (cancelled) return;
+        const name = ex && ex.name;
+        setCamErr(
+          name === 'NotAllowedError' || name === 'SecurityError'
+            ? 'Camera access was blocked. Allow it in your browser’s site settings, or choose a photo instead.'
+          : name === 'NotFoundError' || name === 'OverconstrainedError'
+            ? 'No camera was found on this device.'
+          : name === 'NotReadableError'
+            ? 'The camera is already in use by another app. Close that and try again.'
+          : 'The camera could not be started.'
+        );
+      }
+    })();
+    return () => { cancelled = true; stop(); };
+  }, [facing, stop]);
+
+  const shoot = () => {
+    const el = videoRef.current;
+    if (!el || !ready) return;
+    let dataUrl;
+    try {
+      dataUrl = grabFrame(el, 1400, 0.82);
+    } catch (ex) {
+      setCamErr(ex.message);
+      return;
+    }
+    setFlash(true);
+    setTimeout(() => setFlash(false), 340);
+    stop();               // release the camera before the upload starts
+    onCapture(dataUrl);
+  };
+
+  if (camErr) {
+    return (
+      <div className="drop">
+        <h3>Camera unavailable</h3>
+        <p>{camErr}</p>
+        <div className="acts">
+          <button className="btn btn-accent" onClick={onFallback}>Choose a photo</button>
+          <button className="btn" onClick={onClose}>Back</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={'cam' + (facing === 'user' ? ' user' : '')}>
+      <video ref={videoRef} playsInline muted autoPlay/>
+      {!ready && <div className="camloading">Starting camera…</div>}
+      <div className="guide"><span className="g1"/><span className="g2"/><span className="g3"/><span className="g4"/></div>
+      <div className="tip">Fit the whole car in frame — include the windscreen price sticker if there is one</div>
+      <div className={'camflash' + (flash ? ' on' : '')}/>
+      <div className="bar">
+        <div className="side">
+          <button className="cambtn" onClick={onClose} aria-label="Close camera"><XIco/></button>
+        </div>
+        <button className="shutter" onClick={shoot} disabled={!ready} aria-label="Take photo"/>
+        <div className="side">
+          {multi && (
+            <button className="cambtn" aria-label="Switch camera"
+                    onClick={() => setFacing((f) => (f === 'environment' ? 'user' : 'environment'))}>
+              <FlipIco/>
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function Lens({ car, ev, photo, busy, badge, onRescan, rates }) {
   const est = (k) => car && car.estimated && car.estimated.indexOf(k) !== -1;
@@ -297,6 +477,9 @@ function App() {
   const [over, setOver] = useState(false);
   const fileRef = useRef(null);
   const camRef = useRef(null);
+  // Computed once: getUserMedia needs a secure context, so this is false on
+  // plain http and we fall back to the native picker rather than a dead button.
+  const [canCamera] = useState(cameraSupported);
 
   useEffect(() => {
     fetch(API + '/rates')
@@ -305,15 +488,10 @@ function App() {
       .catch(() => {});
   }, []);
 
-  const scan = useCallback(async (file) => {
-    if (!file) return;
+  // The camera hands us an already-sized data URL, the file inputs hand us a
+  // File; both end up here, so there is one upload path to reason about.
+  const scanDataUrl = useCallback(async (dataUrl) => {
     setErr(''); setRes(null); setPick(0); setVariant('');
-    let dataUrl;
-    try {
-      dataUrl = await shrink(file, 1400, 0.82);
-    } catch (ex) {
-      setPhoto(null); setErr(ex.message); setStage('error'); return;
-    }
     setPhoto(dataUrl);
     setStage('scanning');
     try {
@@ -337,6 +515,17 @@ function App() {
     }
   }, []);
 
+  const scan = useCallback(async (file) => {
+    if (!file) return;
+    let dataUrl;
+    try {
+      dataUrl = await shrink(file, 1400, 0.82);
+    } catch (ex) {
+      setPhoto(null); setErr(ex.message); setStage('error'); return;
+    }
+    scanDataUrl(dataUrl);
+  }, [scanDataUrl]);
+
   const onDrop = (e) => {
     e.preventDefault(); setOver(false);
     const f = e.dataTransfer.files && e.dataTransfer.files[0];
@@ -344,6 +533,7 @@ function App() {
   };
 
   const reset = () => { setStage('idle'); setPhoto(null); setRes(null); setErr(''); };
+  const openCamera = () => { setErr(''); setStage('camera'); };
 
   const busy = stage === 'scanning';
   const v = res && res.vehicle;
@@ -402,11 +592,21 @@ function App() {
             <p>A three-quarter view works best. If it's on a forecourt, get the windscreen
                price sticker in frame — that's the most reliable read by far.</p>
             <div className="acts">
-              <button className="btn btn-accent" onClick={()=>camRef.current && camRef.current.click()}>Take a photo</button>
+              {canCamera
+                ? <button className="btn btn-accent" onClick={openCamera}>Open camera</button>
+                : <button className="btn btn-accent" onClick={()=>camRef.current && camRef.current.click()}>Take a photo</button>}
               <button className="btn" onClick={()=>fileRef.current && fileRef.current.click()}>Choose a photo</button>
             </div>
-            <div className="hint">Or drop an image here.</div>
+            <div className="hint">
+              {canCamera ? 'Or drop an image here.'
+                         : 'Live camera needs a secure (https) connection — drop an image here instead.'}
+            </div>
           </div>
+        )}
+
+        {stage === 'camera' && (
+          <Camera onCapture={scanDataUrl} onClose={reset}
+                  onFallback={()=>{ reset(); setTimeout(()=>fileRef.current && fileRef.current.click(), 0); }}/>
         )}
 
         {stage === 'error' && (
@@ -414,7 +614,10 @@ function App() {
             <h3>That didn't work</h3>
             <p>{err}</p>
             <div className="acts">
-              <button className="btn btn-accent" onClick={()=>camRef.current && camRef.current.click()}>Take another</button>
+              {canCamera
+                ? <button className="btn btn-accent" onClick={openCamera}>Take another</button>
+                : <button className="btn btn-accent" onClick={()=>camRef.current && camRef.current.click()}>Take another</button>}
+              <button className="btn" onClick={()=>fileRef.current && fileRef.current.click()}>Choose a photo</button>
               <button className="btn" onClick={reset}>Start over</button>
             </div>
           </div>
