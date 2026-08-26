@@ -706,8 +706,10 @@ function App() {
                   </>
                 ) : (
                   <div className="cmp"><div className="empty">
-                    {!alt ? 'No electric stock is listed to compare against right now.'
-                          : 'Not enough price information to compare these two yet.'}
+                    {alt ? 'Not enough price information to compare these two yet.'
+                         : res.reached && res.reached.electric
+                           ? 'No electric stock is listed to compare against right now.'
+                           : "We couldn't reach AutoTrader just now, so there's no electric alternative to compare against. Try again shortly."}
                   </div></div>
                 )}
 
@@ -738,7 +740,9 @@ function App() {
                     </>
                   ) : (
                     <div className="buylist"><div className="empty">
-                      Nothing matching is listed for sale right now.
+                      {res.reached && res.reached.forSale
+                        ? 'Nothing matching is listed for sale right now.'
+                        : "We couldn't reach AutoTrader just now, so there are no listings to show. Try again shortly."}
                     </div></div>
                   )}
                 </div>

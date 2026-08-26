@@ -174,11 +174,12 @@ export default async function handler(req, res) {
       });
     }
 
-    let alternatives = [], band = null;
+    let alternatives = [], band = null, evReached = false;
     try {
       const found = await findElectric(vehicle.price);
       alternatives = found.list;
       band = found.band;
+      evReached = found.reached;
     } catch (e) {
       // Alternatives are a bonus — never fail the whole request over them.
     }
@@ -190,7 +191,11 @@ export default async function handler(req, res) {
       notes.push("This listing is already electric, so the alternatives below are other EVs in the same price range.");
     }
     if (!alternatives.length) {
-      notes.push("No electric stock found in this price band right now.");
+      notes.push(
+        evReached
+          ? "No electric stock found in this price band right now."
+          : "We couldn't reach the listings site to pull electric alternatives just now. Try again shortly."
+      );
     }
 
     // Adverts move; a short edge cache keeps repeat pastes cheap without

@@ -199,11 +199,44 @@ export default async function handler(req, res) {
     const text = response.content.filter((b) => b.type === "text").map((b) => b.text).join("");
     id = JSON.parse(text);
   } catch (ex) {
-    console.error("[scan] vision call failed:", ex);
+    // Blaming the photo for a server problem is the worst thing this endpoint
+    // can do: the user retries a perfectly good picture forever and nobody ever
+    // learns the key is wrong. Separate "our fault" from "that photo".
+    const status = ex && ex.status;
+    console.error(`[scan] vision call failed (status ${status || "none"}):`, ex && ex.message);
+
     if (ex instanceof Anthropic.RateLimitError) {
-      return res.status(429).json({ error: "rate_limited", message: "Too many scans right now — try again in a moment." });
+      return res.status(429).json({
+        error: "rate_limited",
+        message: "Too many scans right now — try again in a moment.",
+      });
     }
-    return res.status(502).json({ error: "scan_failed", message: "Couldn't read that photo. Try again." });
+    // 401/403 = bad or missing key; 400 credit_balance_too_low = unpaid account.
+    // All are deployment faults, and no retry by the user will fix them.
+    const badCredentials =
+      ex instanceof Anthropic.AuthenticationError ||
+      ex instanceof Anthropic.PermissionDeniedError ||
+      (status === 400 && /credit balance|billing/i.test((ex && ex.message) || ""));
+    if (badCredentials) {
+      return res.status(503).json({
+        error: "not_configured",
+        message: "Scanning is temporarily unavailable — this one is on us, not your photo.",
+        // Names the failure class only; the key itself never leaves the server.
+        code: status === 400 ? "billing" : "auth",
+      });
+    }
+    if (ex instanceof Anthropic.BadRequestError) {
+      return res.status(502).json({
+        error: "scan_failed",
+        message: "Scanning hit a problem on our side. Try again shortly.",
+        code: "bad_request",
+      });
+    }
+    return res.status(502).json({
+      error: "scan_failed",
+      message: "Couldn't read that photo. Try again.",
+      code: "upstream",
+    });
   }
 
   if (!id || !id.is_car) {
@@ -223,12 +256,13 @@ export default async function handler(req, res) {
 
   // Where you can buy one. Failures here are non-fatal — the identification is
   // still worth showing.
-  let buy = [], searchUrl = null;
+  let buy = [], searchUrl = null, buyReached = false;
   try {
     const years = id.year_from && id.year_to ? [id.year_from, id.year_to] : null;
     const found = await findForSale(id.make, id.model, { years });
     buy = found.list;
     searchUrl = found.searchUrl;
+    buyReached = found.reached;
   } catch (ex) {
     console.error("[scan] for-sale search failed:", ex);
   }
@@ -250,20 +284,38 @@ export default async function handler(req, res) {
     notes.push("Variant is a guess from the photo — confirm it, because trim moves the price more than anything else.");
   }
   if (!buy.length) {
-    notes.push("Nothing matching is listed for sale right now, so there's no price to compare against.");
+    notes.push(
+      buyReached
+        ? "Nothing matching is listed for sale right now, so there's no price to compare against."
+        : "We couldn't reach the listings site just now, so the cars for sale and the electric alternatives are missing. The identification above is unaffected — try again shortly."
+    );
   }
 
   // The EV alternative, costed against it — unless it already is one.
-  let alternatives = [], band = null;
+  let alternatives = [], band = null, evReached = false;
   if (vehicle.powertrain !== "ev") {
     try {
       const found = await findElectric(price);
       alternatives = found.list;
       band = found.band;
+      evReached = found.reached;
     } catch (ex) {
       console.error("[scan] electric search failed:", ex);
     }
+    // Only worth saying when the for-sale note above did not already say it.
+    if (!alternatives.length && buy.length) {
+      notes.push(
+        evReached
+          ? "No electric stock is listed in this price band right now."
+          : "We couldn't reach the listings site to pull the electric alternatives. Try again shortly."
+      );
+    }
   }
 
-  return res.status(200).json({ vehicle, buy, searchUrl, alternatives, band, notes });
+  return res.status(200).json({
+    vehicle, buy, searchUrl, alternatives, band, notes,
+    // Lets the page distinguish "no stock" from "couldn't look" without
+    // re-reading the wording of a note.
+    reached: { forSale: buyReached, electric: evReached },
+  });
 }
