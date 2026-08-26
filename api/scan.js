@@ -50,7 +50,19 @@ const ALLOWED_MIME = ["image/jpeg", "image/png", "image/webp"];
 
 // Structured output: the model must answer in exactly this shape, so there is
 // no free-text parsing and no "sometimes it returns prose" failure mode.
-const SCHEMA = {
+//
+// A nullable field must be written as anyOf, never as a ["string", "null"] type
+// array. Structured outputs take exactly one basic type per node and express
+// unions through anyOf; a type array is rejected, and since a rejected schema
+// fails the whole request, that one habit made every single scan return a 400.
+// The enum belongs on the string branch alone — listing null inside an enum is
+// the same mistake wearing a different hat.
+const nullable = (schema, description) => ({
+  anyOf: [schema, { type: "null" }],
+  ...(description ? { description } : {}),
+});
+
+export const SCHEMA = {
   type: "object",
   additionalProperties: false,
   required: ["is_car", "make", "model", "variant", "year_from", "year_to",
@@ -58,15 +70,15 @@ const SCHEMA = {
              "confidence", "notes"],
   properties: {
     is_car: { type: "boolean", description: "false if the photo does not show a car" },
-    make: { type: ["string", "null"], description: "Manufacturer, e.g. Volkswagen" },
-    model: { type: ["string", "null"], description: "Model line, e.g. Polo" },
-    variant: { type: ["string", "null"], description: "Trim/derivative if legible on a sticker or badge, else your best guess, else null" },
-    year_from: { type: ["integer", "null"], description: "First year of this generation/facelift" },
-    year_to: { type: ["integer", "null"], description: "Last year of this generation/facelift" },
-    fuel: { type: ["string", "null"], enum: ["petrol", "diesel", "hybrid", "phev", "electric", null] },
-    body: { type: ["string", "null"], enum: ["hatch", "sedan", "suv", "bakkie", "mpv", "coupe", null] },
-    engine_litres: { type: ["number", "null"], description: "Engine capacity in litres if determinable, else null" },
-    sticker_price: { type: ["integer", "null"], description: "Asking price in rand if a windscreen/price sticker is legible, else null" },
+    make: nullable({ type: "string" }, "Manufacturer, e.g. Volkswagen"),
+    model: nullable({ type: "string" }, "Model line, e.g. Polo"),
+    variant: nullable({ type: "string" }, "Trim/derivative if legible on a sticker or badge, else your best guess, else null"),
+    year_from: nullable({ type: "integer" }, "First year of this generation/facelift"),
+    year_to: nullable({ type: "integer" }, "Last year of this generation/facelift"),
+    fuel: nullable({ type: "string", enum: ["petrol", "diesel", "hybrid", "phev", "electric"] }),
+    body: nullable({ type: "string", enum: ["hatch", "sedan", "suv", "bakkie", "mpv", "coupe"] }),
+    engine_litres: nullable({ type: "number" }, "Engine capacity in litres if determinable, else null"),
+    sticker_price: nullable({ type: "integer" }, "Asking price in rand if a windscreen/price sticker is legible, else null"),
     read_from: { type: "string", enum: ["sticker", "badge", "visual"], description: "Where the identification mainly came from" },
     confidence: { type: "string", enum: ["high", "medium", "low"] },
     notes: { type: "array", items: { type: "string" }, description: "Anything the user should know: obscured plate, unusual angle, ambiguity between two similar models" },
