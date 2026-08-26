@@ -705,45 +705,56 @@ function App() {
                     )}
                   </>
                 ) : (
-                  <div className="cmp"><div className="empty">
-                    {alt ? 'Not enough price information to compare these two yet.'
-                         : res.reached && res.reached.electric
-                           ? 'No electric stock is listed to compare against right now.'
-                           : "We couldn't reach AutoTrader just now, so there's no electric alternative to compare against. Try again shortly."}
-                  </div></div>
+                  <div className="cmp">
+                    <div className="empty">
+                      {alt ? 'Not enough price information to compare these two yet.'
+                           : res.reached && res.reached.electric
+                             ? 'No electric stock is listed to compare against right now.'
+                             : "We couldn't read AutoTrader's electric stock from our server just now, so there's nothing to cost this against yet."}
+                    </div>
+                    {!alt && res.evSearchUrl && (
+                      <div className="altpick">
+                        <a className="btn" href={res.evSearchUrl} target="_blank" rel="noopener noreferrer">
+                          Browse electric cars on AutoTrader <span className="arr">→</span>
+                        </a>
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 <div className="sect">
                   <h2>Where to buy one</h2>
                   <div className="sub">Live listings on AutoTrader, newest first.</div>
                   {res.buy && res.buy.length ? (
-                    <>
-                      <div className="buylist">
-                        {res.buy.map((b) => (
-                          <a className="buyrow" key={b.id} href={b.url} target="_blank" rel="noopener noreferrer">
-                            <div className="nm">
-                              <b>{b.year ? b.year + ' ' : ''}{b.name}</b>
-                              <span>{[b.condition, b.transmission, b.fuel].filter(Boolean).join(' · ')}</span>
-                            </div>
-                            <div className="pr">{R(b.price)}</div>
-                            <div className="go"><Ext/></div>
-                          </a>
-                        ))}
-                      </div>
-                      {res.searchUrl && (
-                        <div className="altpick">
-                          <a className="btn" href={res.searchUrl} target="_blank" rel="noopener noreferrer">
-                            See all on AutoTrader <span className="arr">→</span>
-                          </a>
-                        </div>
-                      )}
-                    </>
+                    <div className="buylist">
+                      {res.buy.map((b) => (
+                        <a className="buyrow" key={b.id} href={b.url} target="_blank" rel="noopener noreferrer">
+                          <div className="nm">
+                            <b>{b.year ? b.year + ' ' : ''}{b.name}</b>
+                            <span>{[b.condition, b.transmission, b.fuel].filter(Boolean).join(' · ')}</span>
+                          </div>
+                          <div className="pr">{R(b.price)}</div>
+                          <div className="go"><Ext/></div>
+                        </a>
+                      ))}
+                    </div>
                   ) : (
                     <div className="buylist"><div className="empty">
                       {res.reached && res.reached.forSale
                         ? 'Nothing matching is listed for sale right now.'
-                        : "We couldn't reach AutoTrader just now, so there are no listings to show. Try again shortly."}
+                        : "We couldn't read AutoTrader's listings from our server just now. The search itself works fine in your own browser — open it below."}
                     </div></div>
+                  )}
+                  {/* Shown whether or not we could read the results ourselves. When
+                      we can't, this link is the whole point: the search works
+                      perfectly in the visitor's browser, so handing it over beats
+                      a dead end. */}
+                  {res.searchUrl && (
+                    <div className="altpick">
+                      <a className="btn" href={res.searchUrl} target="_blank" rel="noopener noreferrer">
+                        {res.buy && res.buy.length ? 'See all on AutoTrader' : 'Open this search on AutoTrader'} <span className="arr">→</span>
+                      </a>
+                    </div>
                   )}
                 </div>
 

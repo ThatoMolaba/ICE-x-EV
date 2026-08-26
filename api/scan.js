@@ -305,7 +305,7 @@ export default async function handler(req, res) {
   }
 
   // The EV alternative, costed against it — unless it already is one.
-  let alternatives = [], band = null, evReached = false, evStatus = null;
+  let alternatives = [], band = null, evReached = false, evStatus = null, evSearchUrl = null;
   if (vehicle.powertrain !== "ev") {
     try {
       const found = await findElectric(price);
@@ -313,6 +313,7 @@ export default async function handler(req, res) {
       band = found.band;
       evReached = found.reached;
       evStatus = found.status;
+      evSearchUrl = found.searchUrl;
     } catch (ex) {
       console.error("[scan] electric search failed:", ex);
     }
@@ -327,7 +328,7 @@ export default async function handler(req, res) {
   }
 
   return res.status(200).json({
-    vehicle, buy, searchUrl, alternatives, band, notes,
+    vehicle, buy, searchUrl, alternatives, band, evSearchUrl, notes,
     // Lets the page distinguish "no stock" from "couldn't look" without
     // re-reading the wording of a note.
     reached: { forSale: buyReached, electric: evReached },
