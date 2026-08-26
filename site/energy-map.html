@@ -342,22 +342,25 @@ function App(){
     return filter==='all' ? true : filter==='fast' ? (s.kw||0) >= 100 : s.status==='ok';
   });
   const okCount = stations.filter(function(s){ return s.status==='ok'; }).length;
-  const isSample = source==='sample' || source==='local';
+  // "unavailable" means we have no charger data at all, not zero chargers
+  // nearby. Those are different claims and the page must not merge them.
+  const unavailable = source === 'unavailable';
 
   return (
     <div className="map-page">
       <div className="map-head">
         <div>
-          <div className="eyebrow">Energy Map <span className="pp">Live</span></div>
+          <div className="eyebrow">Energy Map {!unavailable && <span className="pp">Live</span>}</div>
           <h1>Charge with confidence.</h1>
           <p>Every public charger near you and along your routes — power, price and live availability.</p>
         </div>
         <div className="chips" style={{display:'flex',gap:'10px',alignItems:'center'}}>
-          <span style={{fontFamily:"'Space Grotesk'",fontSize:'15px',color:'var(--fg-2)'}}>
-            <b style={{color:'var(--fg)'}}>{okCount}</b> available now · <b style={{color:'var(--fg)'}}>{stations.length}</b> near{' '}
-            <b style={{color:'var(--fg)'}}>{String(place).split(',')[0]}</b>
-          </span>
-          {isSample && <span className="src-badge">sample data</span>}
+          {!unavailable && (
+            <span style={{fontFamily:"'Space Grotesk'",fontSize:'15px',color:'var(--fg-2)'}}>
+              <b style={{color:'var(--fg)'}}>{okCount}</b> available now · <b style={{color:'var(--fg)'}}>{stations.length}</b> near{' '}
+              <b style={{color:'var(--fg)'}}>{String(place).split(',')[0]}</b>
+            </span>
+          )}
         </div>
       </div>
 
@@ -375,10 +378,10 @@ function App(){
                   {searchMsg.err ? searchMsg.text : <span>Showing chargers near <b>{searchMsg.text}</b></span>}
                 </div>
               : <div className="searchmsg">Press Enter or hit Search to move the map.</div>}
-            {isSample && (
+            {unavailable && (
               <div className="searchmsg err">
-                These are sample stations, not real ones near {String(place).split(',')[0]} —
-                set <b>GOOGLE_MAPS_API_KEY</b> in <b>.env.local</b> for live charger data.
+                Charger data isn't available right now, so the map is empty. We'd
+                rather show you nothing than invent stations you might drive to.
               </div>
             )}
           </div>
@@ -389,7 +392,15 @@ function App(){
           </div>
           <div className="stationlist">
             {phase==='loading' && <div style={{padding:'18px',color:'var(--fg-3)',fontSize:'13px'}}>Loading chargers…</div>}
-            {phase==='ready' && list.length===0 && <div style={{padding:'18px',color:'var(--fg-3)',fontSize:'13px'}}>No chargers match this filter.</div>}
+            {phase==='ready' && list.length===0 && (
+              <div style={{padding:'18px',color:'var(--fg-3)',fontSize:'13px'}}>
+                {unavailable
+                  ? "No charger data to show."
+                  : stations.length === 0
+                    ? 'No chargers found near ' + String(place).split(',')[0] + '.'
+                    : 'No chargers match this filter.'}
+              </div>
+            )}
             {list.map((s) => (
               <div key={s.id} className={'stn' + (sel===s.id?' sel':'')} onClick={()=>setSel(s.id)}>
                 <div className="r1">

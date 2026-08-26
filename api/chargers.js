@@ -5,9 +5,11 @@
 // Nearby Search. The Google key is read from process.env.GOOGLE_MAPS_API_KEY
 // and is NEVER sent to the browser.
 //
-// If the key is missing OR the upstream call fails, this returns a small sample
-// dataset so the front-end stays demonstrable during development. The response
-// always carries a `source` field: "google" | "sample".
+// If the key is missing or the upstream call fails, this returns no stations
+// and says why. It must never invent them: a fabricated charger has a name and
+// a coordinate, so it survives every glance a person gives it and is only
+// discovered by driving to a bay that was never there. The response always
+// carries a `source` field: "google" | "unavailable".
 
 const PLACES_ENDPOINT = "https://places.googleapis.com/v1/places:searchNearby";
 
@@ -105,36 +107,6 @@ function normalizePlace(place, center) {
   };
 }
 
-// Tiny sample used when there's no key yet, so the UI is demonstrable.
-function sampleStations(center) {
-  const seed = [
-    ["Sandton City", "Sandton", 0.001, -0.004, 150, ["CCS", "Type 2"], "ok"],
-    ["Mall of Africa", "Midrand", 0.06, 0.01, 60, ["CCS"], "busy"],
-    ["Rosebank Mall", "Rosebank", -0.03, -0.01, 80, ["CCS", "Type 2"], "ok"],
-    ["Melrose Arch", "Melrose", -0.02, 0.005, 22, ["Type 2"], "ok"],
-    ["N1 Engen 1-Stop", "N1 North", 0.09, -0.05, 200, ["CCS"], "ok"],
-    ["Fourways Mall", "Fourways", 0.08, -0.02, 120, ["CCS", "Type 2"], "busy"],
-  ];
-  return seed.map((r, i) => {
-    const lat = center.lat + r[2];
-    const lng = center.lng + r[3];
-    return {
-      id: "sample-" + (i + 1),
-      name: r[0],
-      area: r[1],
-      lat,
-      lng,
-      kw: r[4],
-      conn: r[5],
-      price: null,
-      rating: null,
-      status: r[6],
-      connectors: null,
-      dist: Math.round(haversineKm(center, { lat, lng }) * 10) / 10,
-    };
-  });
-}
-
 export default async function handler(req, res) {
   // Permissive CORS so the static site can call this during local dev.
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -147,13 +119,14 @@ export default async function handler(req, res) {
 
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
 
-  // No key yet → sample data so the front-end works end-to-end.
   if (!apiKey) {
+    console.error("[chargers] GOOGLE_MAPS_API_KEY is not set");
     return res.status(200).json({
-      source: "sample",
-      note: "GOOGLE_MAPS_API_KEY not set — returning sample data. Add it to .env.local (local) or your Vercel project env (prod).",
+      source: "unavailable",
+      reason: "not_configured",
+      note: "Live charger data isn't switched on for this deployment yet.",
       center,
-      stations: sampleStations(center),
+      stations: [],
     });
   }
 
@@ -176,13 +149,16 @@ export default async function handler(req, res) {
     });
 
     if (!upstream.ok) {
-      const detail = await upstream.text();
+      // Logged in full for whoever holds the dashboard; the caller gets the
+      // status alone, which is enough to tell a bad key from a quota problem.
+      console.error(`[chargers] Places API ${upstream.status}: ${(await upstream.text()).slice(0, 500)}`);
       return res.status(200).json({
-        source: "sample",
-        note: `Places API returned ${upstream.status}. Falling back to sample data. Check the key, that "Places API (New)" is enabled, and its restrictions.`,
-        detail: detail.slice(0, 500),
+        source: "unavailable",
+        reason: "upstream_error",
+        upstream: upstream.status,
+        note: "We couldn't reach the charging-station service just now.",
         center,
-        stations: sampleStations(center),
+        stations: [],
       });
     }
 
@@ -196,12 +172,13 @@ export default async function handler(req, res) {
     res.setHeader("Cache-Control", "s-maxage=3600, stale-while-revalidate=86400");
     return res.status(200).json({ source: "google", center, stations });
   } catch (err) {
+    console.error("[chargers] Places API call threw:", err);
     return res.status(200).json({
-      source: "sample",
-      note: "Unexpected error calling Places API. Falling back to sample data.",
-      detail: String(err && err.message ? err.message : err),
+      source: "unavailable",
+      reason: "network_error",
+      note: "We couldn't reach the charging-station service just now.",
       center,
-      stations: sampleStations(center),
+      stations: [],
     });
   }
 }
