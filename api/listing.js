@@ -174,12 +174,13 @@ export default async function handler(req, res) {
       });
     }
 
-    let alternatives = [], band = null, evReached = false;
+    let alternatives = [], band = null, evReached = false, evStatus = null;
     try {
       const found = await findElectric(vehicle.price);
       alternatives = found.list;
       band = found.band;
       evReached = found.reached;
+      evStatus = found.status;
     } catch (e) {
       // Alternatives are a bonus — never fail the whole request over them.
     }
@@ -207,6 +208,7 @@ export default async function handler(req, res) {
       alternatives,
       priceBand: band,
       notes,
+      upstream: { electric: evStatus },
     });
   } catch (e) {
     const aborted = e && (e.name === "AbortError" || /abort/i.test(String(e.message)));

@@ -268,13 +268,14 @@ export default async function handler(req, res) {
 
   // Where you can buy one. Failures here are non-fatal — the identification is
   // still worth showing.
-  let buy = [], searchUrl = null, buyReached = false;
+  let buy = [], searchUrl = null, buyReached = false, buyStatus = null;
   try {
     const years = id.year_from && id.year_to ? [id.year_from, id.year_to] : null;
     const found = await findForSale(id.make, id.model, { years });
     buy = found.list;
     searchUrl = found.searchUrl;
     buyReached = found.reached;
+    buyStatus = found.status;
   } catch (ex) {
     console.error("[scan] for-sale search failed:", ex);
   }
@@ -304,13 +305,14 @@ export default async function handler(req, res) {
   }
 
   // The EV alternative, costed against it — unless it already is one.
-  let alternatives = [], band = null, evReached = false;
+  let alternatives = [], band = null, evReached = false, evStatus = null;
   if (vehicle.powertrain !== "ev") {
     try {
       const found = await findElectric(price);
       alternatives = found.list;
       band = found.band;
       evReached = found.reached;
+      evStatus = found.status;
     } catch (ex) {
       console.error("[scan] electric search failed:", ex);
     }
@@ -329,5 +331,9 @@ export default async function handler(req, res) {
     // Lets the page distinguish "no stock" from "couldn't look" without
     // re-reading the wording of a note.
     reached: { forSale: buyReached, electric: evReached },
+    // The upstream status when a search came back empty. It names a third-party
+    // response, never anything of ours, and it is the difference between
+    // diagnosing this from a browser and needing dashboard access to the logs.
+    upstream: { forSale: buyStatus, electric: evStatus },
   });
 }
