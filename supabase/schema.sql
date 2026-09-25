@@ -565,6 +565,14 @@ grant update (body, photos, comparison_id)
 grant update (title, body, topic)
   on public.ask_threads to authenticated;
 
+-- profile_prefs is granted explicitly instead of relying on the project's
+-- default privileges: added on a re-run over an existing database, it came up
+-- without the Data API grants the original tables got, so anon was refused
+-- outright and profile.html's read/save of the prefs could fail the same way.
+-- The RLS policies above still limit each member to their own row; anon gets
+-- nothing because a signed-out visitor has no prefs to see.
+grant select, insert, update on public.profile_prefs to authenticated;
+
 -- ============================================================================
 -- STORAGE  (public buckets for avatars and post photos)
 -- ----------------------------------------------------------------------------
